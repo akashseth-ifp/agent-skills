@@ -1,0 +1,12 @@
+{
+  "name": "web-replica-generator-scripts",
+  "private": true,
+  "type": "module",
+  "description": "Dev-only tooling for the web-replica-generator skill (capture, check, visual diff).",
+  "dependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "pixelmatch": "^7.2.0",
+    "playwright": "^1.63.0",
+    "pngjs": "^7.0.0"
+  }
+}

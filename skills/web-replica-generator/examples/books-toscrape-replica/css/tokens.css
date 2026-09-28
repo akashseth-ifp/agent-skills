@@ -1,0 +1,37 @@
+/* Generated from spec.tokens (measured from target/capture.json). */
+:root {
+  --color-brand: rgb(66, 139, 202);
+  --color-brand-border: rgb(53, 126, 189);
+  --color-canvas: rgb(238, 238, 238);
+  --color-surface: rgb(255, 255, 255);
+  --color-surface-muted: rgb(245, 245, 245);
+  --color-surface-table: rgb(249, 249, 249);
+  --color-text: rgb(51, 51, 51);
+  --color-text-muted: rgb(119, 119, 119);
+  --color-on-brand: rgb(255, 255, 255);
+  --color-success: rgb(92, 184, 92);
+  --color-warning-bg: rgb(252, 248, 227);
+  --color-warning-text: rgb(138, 109, 59);
+  --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-base: 14px;
+  --font-line: 20px;
+  --font-price: 16.1px;
+  --font-tagline: 19.565px;
+  --font-h2: 22.4px;
+  --font-h1: 29.96px;
+  --font-logo: 30.1px;
+  --font-detail-price: 26px;
+  --radius-control: 4px;
+  --radius-pill: 15px;
+  --radius-panel-bottom: 0px 0px 6px 6px;
+  --shadow-raised: rgba(0, 0, 0, 0.15) 0px 1px 2px 0px;
+  --shadow-inset: rgba(0, 0, 0, 0.05) 0px 1px 1px 0px inset;
+  --color-border: rgb(221, 221, 221);
+  --color-border-light: rgb(238, 238, 238);
+  --color-divider: rgb(204, 204, 204);
+  /* scale defaults (design-token-system.md), tuned to the 15px/30px gutters in the screenshots */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 15px; --space-5: 20px; --space-6: 30px;
+  --container: 1250px;
+  --duration-fast: 150ms; --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --z-sticky: 100; --z-overlay: 500;
+}

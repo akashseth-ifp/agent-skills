@@ -1,0 +1,163 @@
+{
+  "passed": true,
+  "checkedAt": "2026-09-27T19:00:23.923Z",
+  "only": null,
+  "summary": {
+    "errors": 0,
+    "warnings": 5,
+    "featureCoverage": 1,
+    "fidelity": {
+      "home/desktop": 0.879,
+      "home/tablet": 0.859,
+      "home/mobile": 0.825,
+      "category/desktop": 0.879,
+      "category/tablet": 0.859,
+      "category/mobile": 0.825,
+      "detail/desktop": 0.915,
+      "detail/tablet": 0.866,
+      "detail/mobile": 0.795
+    },
+    "fidelityAvg": 0.856,
+    "seconds": 52
+  },
+  "failures": [
+    {
+      "severity": "warn",
+      "files": [
+        "css/catalog.css",
+        "js/views/catalog.js"
+      ],
+      "id": "a11y:home",
+      "kind": "a11y",
+      "owner": "builder:catalog",
+      "message": "color-contrast (137): Elements must meet minimum color contrast ratio thresholds"
+    },
+    {
+      "severity": "warn",
+      "files": [
+        "css/catalog.css",
+        "js/views/catalog.js"
+      ],
+      "id": "a11y:category",
+      "kind": "a11y",
+      "owner": "builder:catalog",
+      "message": "color-contrast (137): Elements must meet minimum color contrast ratio thresholds"
+    },
+    {
+      "severity": "warn",
+      "files": [
+        "css/detail.css",
+        "js/views/detail.js",
+        "css/basket.css",
+        "js/views/basket.js"
+      ],
+      "id": "a11y:detail",
+      "kind": "a11y",
+      "owner": "builder:detail",
+      "message": "color-contrast (9): Elements must meet minimum color contrast ratio thresholds"
+    },
+    {
+      "severity": "warn",
+      "files": [
+        "css/detail.css",
+        "js/views/detail.js",
+        "css/basket.css",
+        "js/views/basket.js"
+      ],
+      "id": "visual:detail/mobile",
+      "kind": "visual",
+      "owner": "builder:detail",
+      "message": "layout similarity 0.795 < 0.8. Compare target target/screens/catalogue-a-light-in-the-attic-1000-index-html-mobile.png with replica report/page-detail-mobile.png; diff report/diff-detail-mobile.png (red = mismatch).",
+      "screenshot": "report/page-detail-mobile.png"
+    },
+    {
+      "severity": "warn",
+      "files": [
+        "css/detail.css",
+        "js/views/detail.js",
+        "css/basket.css",
+        "js/views/basket.js"
+      ],
+      "id": "a11y:basket",
+      "kind": "a11y",
+      "owner": "builder:detail",
+      "message": "color-contrast (6): Elements must meet minimum color contrast ratio thresholds"
+    }
+  ],
+  "features": [
+    {
+      "id": "home-listing",
+      "passed": true
+    },
+    {
+      "id": "category-sidebar",
+      "passed": true
+    },
+    {
+      "id": "category-click",
+      "passed": true
+    },
+    {
+      "id": "category-filter",
+      "passed": true
+    },
+    {
+      "id": "pagination-next",
+      "passed": true
+    },
+    {
+      "id": "pagination-prev",
+      "passed": true
+    },
+    {
+      "id": "open-detail",
+      "passed": true
+    },
+    {
+      "id": "detail-breadcrumb",
+      "passed": true
+    },
+    {
+      "id": "add-to-basket",
+      "passed": true
+    },
+    {
+      "id": "basket-persists",
+      "passed": true
+    },
+    {
+      "id": "basket-page",
+      "passed": true
+    },
+    {
+      "id": "basket-quantity",
+      "passed": true
+    },
+    {
+      "id": "basket-remove",
+      "passed": true
+    },
+    {
+      "id": "mobile-layout",
+      "passed": true
+    }
+  ],
+  "cost": {
+    "rounds": 2,
+    "agents": 6,
+    "minutes": 33,
+    "subagentTokens": 395000,
+    "history": {
+      "fidelityAvg": [
+        0.779,
+        0.809,
+        0.856
+      ],
+      "errors": [
+        0,
+        0,
+        0
+      ]
+    }
+  }
+}

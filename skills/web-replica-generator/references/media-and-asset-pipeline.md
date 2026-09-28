@@ -1,120 +1,46 @@
-# Media & Asset Pipeline Reference
+# Media & Asset Pipeline
 
-This guide specifies how autonomous agents handle images, videos, vector graphics, and motion assets when generating web replicas.
+A replica has no broken images, no `src=""`, and no grey boxes. Every image also shows **what the record says it is**: a headphones listing shows headphones.
 
----
+## Where each kind of asset comes from
 
-## 1. Zero-Placeholder Mandate
+| Asset | Source | Notes |
+|---|---|---|
+| **Logo** | `capture.json` → `pages[0].logo` (inline SVG or `src`) | Demo use only. Keep the footer "not affiliated" line. |
+| **Record images** (products, listings, avatars, covers) | `scripts/find_images.js --manifest` (Wikimedia Commons, free licences), downloaded to `assets/img/` | `image: "assets/img/<key>.jpg"`; source and licence in `assets/img/index.json` |
+| **Hero / promo banners** | A `data.extras` item with its own manifest key, or a CSS gradient with the brand token plus real headline text from `capture.json` | Never an empty banner |
+| **Icons, chevrons, badges, stars** | Inline SVG (`viewBox="0 0 24 24"`, `fill="currentColor"`) | Never raster |
+| **Video** | `<video muted autoplay loop playsinline preload="metadata" poster="…">` | Poster required |
 
-The replica must **never** use unrendered placeholders, broken hotlinks, or generic dummy boxes (e.g. `src="image.png"`, `src="#"`, or empty `src=""`). All media assets must be fully resolved, optimized, and resilient.
+## Record images: one script run, no per-image decisions
 
----
+The Data agent ([agents/data.md](agents/data.md)) does this:
 
-## 2. Multi-Tier Media Strategy
-
-```mermaid
-graph TD
-    A[Media Asset Requirement] --> B{Asset Category}
-    B -->|Bespoke Hero / Promo Banner| C[Tier 1: AI Image Generation Tool]
-    B -->|Catalog / Product Photography| D[Tier 2: Verified High-Entropy CDN]
-    B -->|UI Controls, Icons, Badges| E[Tier 3: Inline Vector SVGs]
-    B -->|Product Demos / Video Reels| F[Tier 4: HTML5 Video & Poster Fallback]
-    
-    C --> G[Zero-Broken-Asset Resilience Layer]
-    D --> G
-    E --> G
-    F --> G
-```
-
----
-
-## 3. Tier Specifications
-
-### Tier 1: AI-Generated Custom Assets (`generate_image`)
-When the target requires unique promotional hero graphics, bespoke event banners (e.g., "Prime Big Deal Days", "Cyber Monday Gaming"), or custom product mockups:
-1. Use the agent's `generate_image` tool with a descriptive prompt:
-   - Example prompt: *"A sleek modern e-commerce promotional banner for high-end wireless headphones on a clean dark gradient background, dramatic studio lighting, 16:9 ratio, no text."*
-2. Save the artifact to the replica project's `assets/images/` directory.
-3. Reference the local image in the HTML/CSS markup.
-
-### Tier 2: Verified High-Entropy Product Photography (CDN)
-For diverse product catalogs and lifestyle showcases:
-- Utilize high-resolution Unsplash CDN URLs with deterministic photo IDs and query parameters for sizing and quality:
-  ```text
-  https://images.unsplash.com/photo-[ID]?auto=format&fit=crop&w=800&q=80
-  ```
-- **Category-specific verified pools**:
-  - *Electronics & Audio*: `photo-1505740420928-5e560c06d30e` (Headphones), `photo-1546868871-7041f2a55e12` (Smartwatch)
-  - *Laptops & Desktops*: `photo-1517336714731-489689fd1ca8` (MacBook), `photo-1588872657578-7efd1f1555ed` (Setup)
-  - *Home & Gaming*: `photo-1606813907291-d86efa9b94db` (Console), `photo-1550745165-9bc0b252726f` (Gaming PC)
-
-### Tier 3: Pure Inline Vector Graphics (SVGs)
-UI controls, status badges, and brand iconography must **never** be raster PNGs:
-- **Search Icons, Carts, Chevrons, Flags**: Embedded as clean inline SVGs with `viewBox="0 0 24 24"` and `fill="currentColor"` to inherit parent typography colors.
-- **Dynamic Star Ratings**: Implemented with SVG clip paths or multi-star layouts to support fractional ratings (e.g., 4.3 out of 5 stars) with pixel precision.
-- **Prime & Best Seller Badges**: Built with inline SVG vectors or CSS clip-path ribbons for sharp rendering on Retina/HiDPI displays.
-
-### Tier 4: HTML5 Video & Motion Media
-For product video previews, hero banner reels, or demo clips:
-- Use semantic `<video>` tags with required attributes for autoplay policies:
-  ```html
-  <video 
-    class="product-preview-video"
-    autoplay 
-    loop 
-    muted 
-    playsinline 
-    preload="metadata"
-    poster="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80"
-  >
-    <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" type="video/mp4" />
-    Your browser does not support the video tag.
-  </video>
-  ```
-- **Mandatory Requirements for Videos**:
-  - Must include `muted` attribute; unmuted autoplay is blocked by modern browsers.
-  - Must include a high-resolution `poster` attribute matching the video frame to prevent layout shifts before the video stream loads.
-  - Provide interactive hover-to-play or play/pause overlay controls.
-
----
-
-## 4. Zero-Broken-Asset Resilience & Fallback Engine
-
-To guarantee Gate 3 passes during self-validation (0 broken images, `naturalWidth > 0`):
-
-1. **CSS Shimmer Loading State**:
-   ```css
-   .media-skeleton {
-     background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-     background-size: 200% 100%;
-     animation: mediaShimmer 1.5s infinite;
-   }
-   @keyframes mediaShimmer {
-     0% { background-position: 200% 0; }
-     100% { background-position: -200% 0; }
-   }
+1. **Name the files first.** Every record (and every extras item with a picture) gets a unique key, and its image field is `assets/img/<key>.jpg` from the start, before anything is downloaded. Views and the checker can use the data at once.
+2. **Write the manifest** `assets/images.manifest.json` with a script over the data, not by hand: `{ "<key>": "<keyword>" }`. Build the keyword from the record: category plus the noun in its title (`"wireless headphones"`, `"poetry book cover"`, `"studio apartment interior"`). A value can be a list, tried in order: `["studio headphones", "headphones"]`.
+3. **Download everything in one run:**
+   ```bash
+   node <skill>/scripts/find_images.js --manifest <replica>/assets/images.manifest.json --download <replica>/assets/img
    ```
+   It searches and downloads keys in parallel (`--concurrency`, default 3), backs off on HTTP 429, prefers JPEG, and writes `<key>.jpg` plus `index.json` (`{ "<key>": { "file", "keyword", "source", "license", "title" } }`). It prints the keys it couldn't fill. Re-runs skip keys that are already downloaded.
+4. **Fill the gaps.** Give each missing key broader fallback keywords in the manifest and run the same command again. After two re-runs, point the records still missing a file at a downloaded image of the same kind (at most 3 records per image). A missing file is a smoke error (HTTP 404) even though the fallback below hides it.
 
-2. **Global Fallback Handler (`js/app.js`)**:
-   Attach an error listener to dynamically swap any failed external image for an inline SVG data URI:
-   ```javascript
-   function setupImageResilience() {
-     const fallbackSvg = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
-       <svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400" fill="#f3f3f3">
-         <rect width="100%" height="100%"/>
-         <circle cx="200" cy="180" r="40" fill="#d5d9d9"/>
-         <path d="M120 280 L280 280 L230 210 L190 260 L160 230 Z" fill="#b0b5b5"/>
-         <text x="200" y="320" font-family="sans-serif" font-size="14" fill="#888" text-anchor="middle">Product Image Preview</text>
-       </svg>
-     `)}`;
+To look at candidates for one keyword by hand, search only: `node <skill>/scripts/find_images.js "wireless headphones" --per 3` prints each result's `url`, `source` and `license`.
 
-     document.querySelectorAll('img').forEach(img => {
-       img.addEventListener('error', function () {
-         if (this.src !== fallbackSvg) {
-           this.src = fallbackSvg;
-           this.classList.add('img-fallback');
-         }
-       });
-     });
-   }
-   ```
+Don't hotlink the target's own product photos. The replica's data is mock data, so its images should be too.
+
+## Resilience (generated in `js/app.js`)
+
+`app.js`, generated by scaffold, installs one capture-phase `error` listener on `document` (`error` doesn't bubble), so every image, including ones rendered later by views, falls back to a neutral inline SVG with the class `img-fallback` (styled in `base.css`). Views need nothing extra, and nobody edits it during the build.
+
+The fallback hides a broken image from users, but `check_replica.js` still reports the original 404 as a smoke error, so the cause gets fixed.
+
+## Loading polish
+
+- Set `width`/`height` (or `aspect-ratio`) on images to prevent layout shift. Match the aspect ratios in the target screenshots.
+- Use `loading="lazy"` below the fold.
+- Optional shimmer while loading:
+  ```css
+  .media-skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+  @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  ```

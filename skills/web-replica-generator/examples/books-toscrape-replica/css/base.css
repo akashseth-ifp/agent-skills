@@ -1,0 +1,79 @@
+/* Reset, page shell and shared atoms (used by every view). Values come from tokens.css. */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--color-canvas);
+  color: var(--color-text);
+  font: var(--font-base) / var(--font-line) var(--font-sans);
+}
+img { max-width: 100%; height: auto; display: block; }
+a { color: var(--color-brand); text-decoration: none; }
+a:hover, a:focus { color: rgb(42, 100, 150); text-decoration: underline; }
+h1, h2, h3 { font-weight: 500; line-height: 1.1; margin: 0; }
+h1 { font-size: var(--font-h1); line-height: 40px; }
+h2 { font-size: var(--font-h2); }
+:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+
+/* Shell: header on the canvas, then one white panel holding every view. */
+.page_inner { max-width: var(--container); margin: 0 auto; }
+.site-header { padding: 0 var(--space-4); }
+.site-header .page_inner { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); min-height: 129px; }
+.brand { font-size: var(--font-logo); font-weight: 500; line-height: 39.13px; }
+.brand small { font-size: var(--font-tagline); color: var(--color-text-muted); font-weight: 400; }
+.basket-link {
+  display: inline-flex; align-items: center; gap: var(--space-2); white-space: nowrap;
+  padding: 6px 12px; border: 1px solid var(--color-brand-border); border-radius: var(--radius-control);
+  background: var(--color-surface); font-size: var(--font-base);
+}
+.basket-link svg { width: 16px; height: 16px; fill: currentColor; }
+.basket-count {
+  min-width: 20px; padding: 0 6px; border-radius: 10px; text-align: center;
+  background: var(--color-brand); color: var(--color-on-brand); font-size: 12px; line-height: 20px;
+}
+.page { padding: 0 var(--space-4); }
+.page > .page_inner {
+  background: var(--color-surface); padding: var(--space-6); border-radius: var(--radius-panel-bottom);
+  box-shadow: var(--shadow-raised); min-height: 60vh;
+}
+/* The target has no footer; keep the guardrail line but compact, so page height stays close to the target. */
+.site-footer { padding: var(--space-2) var(--space-4); text-align: center; color: var(--color-text-muted); font-size: 11px; line-height: 16px; }
+
+/* Shared atoms */
+.breadcrumb {
+  display: flex; flex-wrap: wrap; list-style: none; margin: 0 0 var(--space-5); padding: 8px 15px;
+  background: var(--color-surface-muted); border-radius: var(--radius-control);
+}
+.breadcrumb li + li::before { content: "/"; padding: 0 5px; color: rgb(204, 204, 204); }
+.breadcrumb .active { color: var(--color-text-muted); }
+.alert-warning {
+  padding: 15px; margin: var(--space-5) 0; border: 1px solid rgb(250, 235, 204); border-radius: var(--radius-control);
+  background: var(--color-warning-bg); color: var(--color-warning-text);
+}
+.btn-primary {
+  display: inline-block; padding: 6px 12px; border: 1px solid var(--color-brand-border); border-radius: var(--radius-control);
+  background: var(--color-brand); color: var(--color-on-brand); font: inherit; cursor: pointer; text-align: center;
+  transition: background var(--duration-fast) var(--ease-standard);
+}
+.btn-primary:hover { background: rgb(48, 113, 169); color: var(--color-on-brand); text-decoration: none; }
+.btn-primary:active { transform: scale(0.98); }
+.btn-block { display: block; width: 100%; }
+.price { color: var(--color-success); font-size: var(--font-price); }
+.instock { color: var(--color-success); }
+.instock::before { content: "✔ "; }
+/* Star rating: <p class="stars" data-rating="3" aria-label="3 out of 5 stars"></p> */
+.stars { margin: 0; color: rgb(230, 206, 49); letter-spacing: 2px; font-size: 16px; line-height: 1; }
+.stars::before { content: "★★★★★"; background: linear-gradient(90deg, rgb(230, 206, 49) calc(var(--r, 0) * 20%), rgb(221, 221, 221) 0); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.stars[data-rating="1"] { --r: 1; } .stars[data-rating="2"] { --r: 2; } .stars[data-rating="3"] { --r: 3; }
+.stars[data-rating="4"] { --r: 4; } .stars[data-rating="5"] { --r: 5; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.img-fallback { background: var(--color-surface-muted); }
+
+/* Mobile, measured from target/screens/*-mobile.png: logo stays 30px with the tagline wrapping inline,
+   the panel keeps its 30px padding and starts ~138px down. The basket link sits top-right. */
+@media (max-width: 767px) {
+  .site-header .page_inner { min-height: 138px; align-items: flex-start; padding: 30px 15px 20px; } /* logo at x=45 like the panel content */
+  .brand { flex: 1; min-width: 0; }
+  .basket-link { padding: 4px 8px; }
+  .basket-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}

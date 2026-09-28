@@ -2,11 +2,17 @@
 
 To achieve "replica fidelity", a web application must move far beyond superficial styling. It requires a rigorous, token-driven CSS architecture that mimics the visual identity, typography rhythm, and micro-interactions of the target platform.
 
+> **Where the values come from.** Every value in `tokens.css` comes from `spec.tokens`, which the Analyst copied out of `target/capture.json`. The Amazon values below show the *structure* and naming. They are not values to reuse for Amazon or any other site.
+>
+> **Generated, not hand-written.** `node <skill>/scripts/scaffold_replica.js --dir <replica>` writes `css/tokens.css` (owner `scaffold`): every `spec.tokens.<group>.<name>` becomes `--<group>-<name>`. For example, `color.brand` becomes `--color-brand`, `font.sans` becomes `--font-sans`, and `radius.control` becomes `--radius-control`. Nobody edits `tokens.css` during the build. A missing or wrong value is a spec change: the orchestrator fixes `spec.tokens`, then regenerates just this file with `rm <replica>/css/tokens.css && node <skill>/scripts/scaffold_replica.js --dir <replica>`.
+>
+> **Who writes what.** Builders use only these variables. The rest of the scale (spacing, z-index, easing, the shared atoms below) is builder:shell's, in `css/base.css`: take the defaults below and adjust spacing to what the screenshots show. View Builders, working in parallel with builder:shell, use the `tokens.css` variables plus measured px values in `css/<view>.css`, and don't wait for `base.css`.
+
 ---
 
 ## 1. Universal Design Token Architecture (`tokens.css`)
 
-Every replica must establish a centralized CSS custom properties file defining the token hierarchy:
+The shape of a full token hierarchy (example values). `tokens.css` holds the measured part; builder:shell adds the rest of the scale to `:root` in `base.css`:
 
 ```css
 :root {

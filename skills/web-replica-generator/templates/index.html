@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="__LANG__">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>__TITLE__</title>
+__STYLES__
+</head>
+<body>
+  <!-- shell:header (builder:shell rewrites everything up to /shell:header) -->
+  <header class="site-header"></header>
+  <!-- /shell:header -->
+  <main id="content">
+__SECTIONS__
+  </main>
+  <!-- shell:footer (builder:shell rewrites everything up to /shell:footer; keep the data-replica-note line) -->
+  <footer class="site-footer">
+    <p data-replica-note>Replica for demo purposes only, not affiliated with __BRAND__.</p>
+  </footer>
+  <!-- /shell:footer -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,121 +1,56 @@
-# Target Reconnaissance & Research Playbook
+# Reconnaissance Playbook
 
-This playbook provides actionable procedures for an autonomous AI agent to dissect, analyze, and profile any target URL or web concept prior to code generation.
+Recon records four things about the target:
+1. **Visual tokens:** colours, type, spacing, radii and shadows.
+2. **Structure:** layout, sticky elements, breakpoints.
+3. **Interactions:** menus, drawers, carousels, filters, and state that persists.
+4. **Data shape:** what the repeated items contain and how they're worded.
 
----
+`scripts/capture_target.js` does most of this in one command. The build workflow runs it for you; by hand:
 
-## 1. Reconnaissance Objectives
+## 1. Capture
 
-Before writing code, the agent must extract four critical dimensions from the target:
-1. **Visual & Design Tokens**: Color palette, typography scale, spacing units, elevation/shadows, radii.
-2. **Structural Anatomy**: Layout grids, flex structures, sticky elements, z-index layering, responsive breakpoints.
-3. **Interactive Mechanics**: Micro-interactions, transitions, modals, drawers, carousels, hover states, client state stores.
-4. **Data & Schema Topology**: Information architecture, card schemas, badge types, pricing structures, facet categories.
-
----
-
-## 2. Multi-Modal Inspection Workflow
-
-When investigating a live URL (e.g., `https://www.amazon.com/`):
-
-### Step 1: Initial Health & Access Check
-Use `read_url_content` or a quick headless curl via `run_command`:
 ```bash
-curl -s -I -L "https://www.amazon.com/" -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-```
-- If HTTP 200 OK: proceed to browser inspection.
-- If HTTP 403, 429, or CAPTCHA detected: immediately trigger the **Anti-Bot Mitigation Protocol** (Section 4).
-
-### Step 2: Visual & DOM Capture via `browser_subagent`
-Deploy a browser subagent with a structured inspection prompt:
-```text
-Task: Navigate to <TARGET_URL>. Inspect the homepage and primary navigation.
-1. Capture screenshots at 1440px (Desktop), 768px (Tablet), and 375px (Mobile).
-2. Inspect the global header: identify search bar, location picker, flyout menus, and cart badge.
-3. Open any primary dropdown/drawer (e.g. "All" menu or category selector) and record its open state DOM.
-4. Locate the primary card grid or product showcase section and extract the HTML snippet of a single card.
-5. Report the dominant colors, fonts, and interactive elements.
+node <skill>/scripts/capture_target.js https://www.example.com --out <replica>/target --pages 3
+node <skill>/scripts/capture_target.js <home> <listing-url> <detail-url> --out <replica>/target   # explicit journey
 ```
 
-### Step 3: Automated Computed Token Extraction
-When browser access is active, run this diagnostic script in the browser context (or via `scripts/extract_tokens.js`) to harvest exact computed values:
+The three viewports of a page are captured concurrently, and so are all journey pages after the first (`--concurrency`, default 4 browser contexts). A 3-page capture takes 1–3 minutes. Lower `--concurrency` if the site starts answering 429.
 
-```javascript
-(() => {
-  const getComputedTokens = () => {
-    const elements = Array.from(document.querySelectorAll('*'));
-    const colors = new Set();
-    const bgColors = new Set();
-    const fonts = new Set();
-    const fontSizes = new Set();
-    const borderRadii = new Set();
+| Output | Use it for |
+|---|---|
+| `screens/<page>-desktop/tablet/mobile.png` | **Look at these** (Read tool). They are ground truth for layout, hierarchy and breakpoint behaviour. |
+| `states/<page>-<n>.png` | Menus and popups opened from the header or nav. Each is a feature to replicate. |
+| `capture.json → tokens` | Colour, font, size, radius and shadow frequencies, weighted by painted area or text length. The top entries are the brand. |
+| `capture.json → keyElements` | Exact computed styles for header, nav, buttons, inputs and headings, including their box sizes. |
+| `capture.json → cardGroups` | Repeated items with real text and image samples. This is the data shape and the card styling. |
+| `capture.json → interactive` | Every visible control, with its region. This is the feature checklist. |
+| `capture.json → ariaOutline` | The page structure as landmarks, headings, lists and links. |
+| `capture.json → links` | Where the journey goes next. Raise `--pages` to follow more. |
 
-    elements.slice(0, 1000).forEach(el => {
-      const style = window.getComputedStyle(el);
-      if (style.color && style.color !== 'rgba(0, 0, 0, 0)') colors.add(style.color);
-      if (style.backgroundColor && style.backgroundColor !== 'rgba(0, 0, 0, 0)') bgColors.add(style.backgroundColor);
-      if (style.fontFamily) fonts.add(style.fontFamily.split(',')[0].replace(/['"]/g, '').trim());
-      if (style.fontSize) fontSizes.add(style.fontSize);
-      if (style.borderRadius && style.borderRadius !== '0px') borderRadii.add(style.borderRadius);
-    });
+If the page you need isn't in the automatic pick (for example search results or a real product page), pass the journey explicitly instead: the home URL followed by each page's URL, in the order a user reaches them. With the workflow, put them in `journey`. To get a real detail URL, capture the listing first and take one from `cardGroups[].samples[].links`.
 
-    return {
-      textColors: Array.from(colors).slice(0, 15),
-      backgrounds: Array.from(bgColors).slice(0, 15),
-      fonts: Array.from(fonts).slice(0, 8),
-      fontSizes: Array.from(fontSizes).sort((a,b) => parseFloat(a) - parseFloat(b)),
-      borderRadii: Array.from(borderRadii).slice(0, 10),
-      viewport: { width: window.innerWidth, height: window.innerHeight }
-    };
-  };
-  return JSON.stringify(getComputedTokens(), null, 2);
-})();
-```
+## 2. Decompose
 
----
+Map what you see onto the archetype pack ([archetypes/](archetypes/)), and name the pieces at the right level:
 
-## 3. Component Hierarchy Decomposition
+| Tier | Examples |
+|---|---|
+| Atoms | buttons, badges, price tags, star ratings, inputs |
+| Molecules | search bar with scope picker, product card, delivery line |
+| Organisms | global header, hero carousel, filter sidebar, buy box |
+| Views | home, listing/search, detail, cart/checkout drawer |
 
-Deconstruct the target into a 5-tier architectural taxonomy:
+Each view becomes a `spec.pages` entry (views with the same layout share one `module`). The global header, nav, drawers, popovers and footer belong to `builder:shell`; each organism in them that has behaviour becomes a feature owned by `builder:shell`. Every other organism with behaviour becomes one or more features owned by its view's Builder.
 
-| Tier | Component Type | Target Examples (e.g., Amazon) |
-| :--- | :--- | :--- |
-| **Atoms** | Primitives & controls | Buttons (`#f0c14b`), Badges ("Best Seller", "Prime"), Price Tags, Star Ratings, Inputs, Quantity Selectors |
-| **Molecules** | Compound units | Search Bar with category dropdown, Product Card with rating/price/Prime tag, Delivery Estimator line |
-| **Organisms** | Functional sections | Global Header with accounts/cart, Hero Carousel with gradient scrim, Faceted Filter Sidebar, Product Detail Buy Box |
-| **Templates** | Page shell & layout | Sticky Header + Subnav Banner + Main Grid + Slide-over Drawer + Multi-column Footer |
-| **Pages / Views** | Full interactive views | Homepage, Search Results / Catalog, Product Detail Page (PDP), Slide-over Cart Drawer |
+## 3. Blocked targets
 
----
+`capture.json` says `"blocked": true` when the site returned an error status or its title or content looks like a CAPTCHA or bot wall. Don't try to get around bot protection. Instead:
 
-## 4. Anti-Bot & Obstacle Mitigation Protocol
-
-High-traffic targets (Amazon, Walmart, LinkedIn, Twitter/X) frequently block automated headless browsers with Cloudflare Turnstile, AWS WAF, or PerimeterX. 
-
-When scraping is blocked:
-1. **Never stall or fail the task**. Switch immediately to **Synthetic Design System Reconstruction**.
-2. **Query Public Documentation & Design Specs**:
-   - Amazon: Uses the **AUI (Amazon User Interface)** and Ember design system.
-   - Core colors:
-     - Dark Navy Header: `#131921` (Nav base), `#232f3e` (Subnav)
-     - Accent Yellow/Orange: `#febd69` (Search focus/accent), `#f08804` (CTA hover), `#ffd814` (Buy Now / Cart yellow), `#ffa41c` (Secondary CTA)
-     - Price Red/Deal: `#cc0c39` (Deal of the day / discount badge)
-     - Background / Page Canvas: `#e3e6e6` (Warm Amazon gray gradient canvas)
-     - Text Primary: `#0f1111`
-     - Link Accent: `#007185` (Amazon Teal link)
-     - Star Rating: `#de7921` / `#ffa41c`
-   - Typography: `"Amazon Ember", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`.
-3. **Fetch Open API Schemas or Web Snapshots**:
-   - Use `search_web` to inspect publicly indexed product data, UI breakdowns, or open-source clones for verification of DOM patterns.
-4. **Synthetic Data Engine**: Generate rich, highly realistic seed records containing realistic product names, ASINs, reviews, prices, Prime badges, discount calculations, and category facets.
-
----
-
-## 5. Output Deliverable: Target Reconnaissance Report
-
-At the conclusion of Phase 1, the agent must document findings in a structured Reconnaissance Matrix:
-- **Target URL / Concept**: URL or PRD definition.
-- **Brand Identity & Color Tokens**: Hex codes for header, accents, surfaces, CTAs, alerts.
-- **Typography Scale**: Base size, heading steps, font families.
-- **Key Interactivity Targets**: List of every interactive widget to implement (e.g., live cart counter, search debounce, filter checkboxes, carousel, Buy Box).
-- **Core User Journey**: Exactly which 3-4 connected views/flows will be fully interactive.
+1. **Try once more** with `--pages 1` on a simpler public page of the same site (for example a help or about page). Those pages often share the header, footer and tokens.
+2. **Use public material.** Use `WebSearch` and `WebFetch` to find the site's published design system or brand guidelines, press screenshots, and the Wayback Machine (`https://web.archive.org/web/2025/<url>`). Capture works on Wayback pages too:
+   ```bash
+   node <skill>/scripts/capture_target.js "https://web.archive.org/web/2025/https://www.example.com/" --out <replica>/target --pages 1
+   ```
+   Wayback's toolbar appears in the screenshots and in the tokens. Ignore the top ~60 px and its styles.
+3. **Record honestly.** Set `"measured": false` in the spec, and note which values came from which source. The final report must say the result is *reconstructed, not measured*.

@@ -1,0 +1,13 @@
+/* Reset, shell (header, nav, footer) and shared atoms (owner: builder:shell; scaffold wrote this starter).
+   Values come from css/tokens.css. */
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--color-canvas, #fff);
+  color: var(--color-text, #111);
+__BODY__
+}
+img { max-width: 100%; height: auto; }
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.img-fallback { object-fit: contain; background: var(--color-surface, #f3f3f3); }

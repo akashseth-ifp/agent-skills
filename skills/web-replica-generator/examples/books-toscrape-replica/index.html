@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>All products | Books to Scrape - Sandbox (replica)</title>
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/catalog.css">
+  <link rel="stylesheet" href="css/detail.css">
+  <link rel="stylesheet" href="css/basket.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="page_inner">
+      <div class="brand"><a href="#/">Books to Scrape</a><small> We love being scraped!</small></div>
+      <nav aria-label="Basket">
+        <a class="basket-link" href="#/basket" data-testid="basket-link">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm10 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM5.2 4H2V2h4.6l.9 2H22l-3.4 8.1a2 2 0 0 1-1.8 1.2H8.1l-1 1.7H19v2H3.6l2.6-4.4L5.2 4z"/></svg>
+          <span class="basket-label">Basket</span> <span class="basket-count" data-testid="basket-count" aria-live="polite">0</span>
+        </a>
+      </nav>
+    </div>
+  </header>
+  <div class="page">
+    <main class="page_inner" id="content">
+      <section data-view="home" aria-label="All products"></section>
+      <section data-view="category" aria-label="Category" hidden></section>
+      <section data-view="detail" aria-label="Book details" hidden></section>
+      <section data-view="basket" aria-label="Basket" hidden></section>
+    </main>
+  </div>
+  <footer class="site-footer">Replica for demo purposes only, not affiliated with Books to Scrape.</footer>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

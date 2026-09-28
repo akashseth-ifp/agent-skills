@@ -1,0 +1,604 @@
+{
+  "target": "https://books.toscrape.com/",
+  "archetype": "ecommerce",
+  "stack": "vanilla",
+  "measured": true,
+  "locale": "en-GB",
+  "currency": "GBP",
+  "tokens": {
+    "color": {
+      "brand": "rgb(66, 139, 202)",
+      "brand-border": "rgb(53, 126, 189)",
+      "canvas": "rgb(238, 238, 238)",
+      "surface": "rgb(255, 255, 255)",
+      "surface-muted": "rgb(245, 245, 245)",
+      "surface-table": "rgb(249, 249, 249)",
+      "text": "rgb(51, 51, 51)",
+      "text-muted": "rgb(119, 119, 119)",
+      "on-brand": "rgb(255, 255, 255)",
+      "success": "rgb(92, 184, 92)",
+      "warning-bg": "rgb(252, 248, 227)",
+      "warning-text": "rgb(138, 109, 59)"
+    },
+    "font": {
+      "sans": "\"Helvetica Neue\", Helvetica, Arial, sans-serif",
+      "base": "14px",
+      "line": "20px",
+      "price": "16.1px",
+      "tagline": "19.565px",
+      "h2": "22.4px",
+      "h1": "29.96px",
+      "logo": "30.1px",
+      "detail-price": "26px"
+    },
+    "radius": {
+      "control": "4px",
+      "pill": "15px",
+      "panel-bottom": "0px 0px 6px 6px"
+    },
+    "shadow": {
+      "raised": "rgba(0, 0, 0, 0.15) 0px 1px 2px 0px",
+      "inset": "rgba(0, 0, 0, 0.05) 0px 1px 1px 0px inset"
+    }
+  },
+  "pages": [
+    {
+      "id": "home",
+      "route": "/",
+      "source": "home",
+      "owner": "builder:catalog",
+      "notes": "Header: logo link + 'We love being scraped!' tagline on grey canvas (add basket link with basket-count at right). White panel: breadcrumb bar (surface-muted), left sidebar box listing 'Books' then all categories, main column h1 'All products', 'N results - showing X to Y.', warning alert, 4-col grid (2-col mobile) of 20 cards: cover image, 1-5 star row, truncated title link, green price, check-icon 'In stock', full-width brand 'Add to basket' button. Pager: 'Page X of N' centred, pill 'previous'/'next' buttons."
+    },
+    {
+      "id": "category",
+      "route": "/#/category/books",
+      "source": "catalogue-category-books-1-index-html",
+      "owner": "builder:catalog",
+      "notes": "Same layout as home, h1 = category name, active sidebar item bold, breadcrumb 'Home / <Category>'. /#/category/books = all books. Paged via /#/category/<slug>/page/<n>; home paged via /#/page/<n>."
+    },
+    {
+      "id": "detail",
+      "route": "/#/book/1",
+      "source": "catalogue-a-light-in-the-attic-1000-index-html",
+      "owner": "builder:detail",
+      "notes": "Breadcrumb 'Home / Books / <Category> / <Title>'. Two columns: large bordered cover left; right h1 title, big green price, 'In stock (N available)', stars, hr, warning alert. Below: 'Product Description' h2 + paragraph, 'Product Information' h2 + striped table (UPC, Product Type, Price excl./incl. tax, Tax £0.00, Availability, Number of reviews). No sidebar."
+    },
+    {
+      "id": "basket",
+      "route": "/#/basket",
+      "source": null,
+      "owner": "builder:detail",
+      "notes": "Not on the real site; requested by the user. Reuse the detail page chrome (breadcrumb 'Home / Basket', white panel, h1 'Basket', striped table style)."
+    }
+  ],
+  "files": {
+    "index.html": "orchestrator",
+    "css/tokens.css": "orchestrator",
+    "css/base.css": "orchestrator",
+    "js/store.js": "orchestrator",
+    "js/router.js": "orchestrator",
+    "js/app.js": "orchestrator",
+    "js/data.js": "data",
+    "css/catalog.css": "builder:catalog",
+    "js/views/catalog.js": "builder:catalog",
+    "css/detail.css": "builder:detail",
+    "js/views/detail.js": "builder:detail",
+    "css/basket.css": "builder:detail",
+    "js/views/basket.js": "builder:detail"
+  },
+  "features": [
+    {
+      "id": "home-listing",
+      "title": "Home lists 20 books per page with a result count",
+      "page": "home",
+      "owner": "builder:catalog",
+      "priority": "must",
+      "steps": [
+        {
+          "goto": "/"
+        },
+        {
+          "expectText": "page-title",
+          "contains": "All products"
+        },
+        {
+          "expectCount": "book-card",
+          "eq": 20
+        },
+        {
+          "expectText": "result-count",
+          "contains": "showing 1 to 20"
+        },
+        {
+          "expectCount": "book-card-rating",
+          "eq": 20
+        },
+        {
+          "expectCount": "book-card-price",
+          "eq": 20
+        }
+      ]
+    },
+    {
+      "id": "category-sidebar",
+      "title": "Sidebar lists categories",
+      "page": "home",
+      "owner": "builder:catalog",
+      "priority": "must",
+      "steps": [
+        {
+          "goto": "/"
+        },
+        {
+          "expectVisible": "category-sidebar"
+        },
+        {
+          "expectCount": "category-link",
+          "min": 10
+        }
+      ]
+    },
+    {
+      "id": "category-click",
+      "title": "Clicking a sidebar category navigates to it",
+      "page": "home",
+      "owner": "builder:catalog",
+      "priority": "must",
+      "steps": [
+        {
+          "goto": "/"
+        },
+        {
+          "click": "css=[data-testid=category-link][data-slug=travel]"
+        },
+        {
+          "expectUrl": "#/category/travel"
+        },
+        {
+          "expectText": "page-title",
+          "contains": "Travel"
+        },
+        {
+          "expectText": "breadcrumb",
+          "contains": "Travel"
+        }
+      ]
+    },
+    {
+      "id": "category-filter",
+      "title": "Category page shows only books of that category",
+      "page": "category",
+      "owner": "builder:catalog",
+      "priority": "must",
+      "steps": [
+        {
+          "goto": "/#/category/poetry"
+        },
+        {
+          "expectText": "page-title",
+          "contains": "Poetry"
+        },
+        {
+          "expectCount": "css=[data-testid=book-card][data-category=\"Poetry\"]",
+          "min": 1
+        },
+        {
+          "expectCount": "css=[data-testid=book-card]:not([data-category=\"Poetry\"])",
+          "eq": 0
+        }
+      ]
+    },
+    {
+      "id": "pagination-next",
+      "title": "Next goes to page 2",
+      "page": "home",
+      "owner": "builder:catalog",
+      "priority": "must",
+      "steps": [
+        {
+          "goto": "/"
+        },
+        {
+          "expectText": "pager-current",
+          "contains": "Page 1 of"
+        },
+        {
+          "click": "pager-next"
+        },
+        {
+          "expectUrl": "#/page/2"
+        },
+        {
+          "expectText": "pager-current",
+          "contains": "Page 2 of"
+        },
+        {
+          "expectText": "result-count",
+          "contains": "showing 21 to"
+        },
+        {
+          "expectCount": "book-card",
+          "min": 1,
+          "max": 20
+        }
+      ]
+    },
+    {
+      "id": "pagination-prev",
+      "title": "Previous returns to page 1; no previous on page 1",
+      "page": "home",
+      "owner": "builder:catalog",
+      "priority": "should",
+      "steps": [
+        {
+          "goto": "/#/page/2"
+        },
+        {
+          "click": "pager-prev"
+        },
+        {
+          "expectText": "pager-current",
+          "contains": "Page 1 of"
+        },
+        {
+          "expectHidden": "pager-prev"
+        }
+      ]
+    },
+    {
+      "id": "open-detail",
+      "title": "Clicking a card title opens the book detail",
+      "page": "home",
+      "owner": "builder:detail",
+      "priority": "must",
+      "steps": [
+        {
+          "goto": "/"
+        },
+        {
+          "click": "book-card-title"
+        },
+        {
+          "expectUrl": "#/book/"
+        },
+        {
+          "expectVisible": "book-title"
+        },
+        {
+          "expectText": "book-price",
+          "contains": "£"
+        },
+        {
+          "expectText": "book-stock",
+          "contains": "available"
+        },
+        {
+          "expectCount": "css=[data-testid=book-info-table] tr",
+          "eq": 7
+        }
+      ]
+    },
+    {
+      "id": "detail-breadcrumb",
+      "title": "Detail breadcrumb links back to the category",
+      "page": "detail",
+      "owner": "builder:detail",
+      "priority": "should",
+      "steps": [
+        {
+          "goto": "/#/book/1"
+        },
+        {
+          "expectVisible": "breadcrumb"
+        },
+        {
+          "click": "breadcrumb-category"
+        },
+        {
+          "expectUrl": "#/category/"
+        },
+        {
+          "expectCount": "book-card",
+          "min": 1
+        }
+      ]
+    },
+    {
+      "id": "add-to-basket",
+      "title": "Add to basket updates the header basket count",
+      "page": "home",
+      "owner": "builder:catalog",
+      "priority": "must",
+      "steps": [
+        {
+          "goto": "/"
+        },
+        {
+          "expectText": "basket-count",
+          "contains": "0"
+        },
+        {
+          "click": "book-card-add"
+        },
+        {
+          "expectText": "basket-count",
+          "contains": "1"
+        }
+      ]
+    },
+    {
+      "id": "basket-persists",
+      "title": "Basket survives a reload",
+      "page": "home",
+      "owner": "builder:catalog",
+      "priority": "must",
+      "steps": [
+        {
+          "goto": "/"
+        },
+        {
+          "click": "book-card-add"
+        },
+        {
+          "expectText": "basket-count",
+          "contains": "1"
+        },
+        {
+          "reload": true
+        },
+        {
+          "expectText": "basket-count",
+          "contains": "1"
+        }
+      ]
+    },
+    {
+      "id": "basket-page",
+      "title": "Basket page lists added books with a total",
+      "page": "basket",
+      "owner": "builder:detail",
+      "priority": "must",
+      "steps": [
+        {
+          "goto": "/"
+        },
+        {
+          "click": "book-card-add"
+        },
+        {
+          "click": "basket-link"
+        },
+        {
+          "expectUrl": "#/basket"
+        },
+        {
+          "expectCount": "basket-line",
+          "eq": 1
+        },
+        {
+          "expectText": "basket-total",
+          "contains": "£"
+        }
+      ]
+    },
+    {
+      "id": "basket-quantity",
+      "title": "Adding the same book twice merges into one line; quantity can be increased",
+      "page": "basket",
+      "owner": "builder:detail",
+      "priority": "should",
+      "steps": [
+        {
+          "goto": "/"
+        },
+        {
+          "click": "book-card-add"
+        },
+        {
+          "click": "book-card-add"
+        },
+        {
+          "expectText": "basket-count",
+          "contains": "2"
+        },
+        {
+          "goto": "/#/basket"
+        },
+        {
+          "expectCount": "basket-line",
+          "eq": 1
+        },
+        {
+          "click": "basket-qty-inc"
+        },
+        {
+          "expectText": "basket-count",
+          "contains": "3"
+        }
+      ]
+    },
+    {
+      "id": "basket-remove",
+      "title": "Removing the last line empties the basket",
+      "page": "basket",
+      "owner": "builder:detail",
+      "priority": "should",
+      "steps": [
+        {
+          "goto": "/"
+        },
+        {
+          "click": "book-card-add"
+        },
+        {
+          "goto": "/#/basket"
+        },
+        {
+          "click": "basket-remove"
+        },
+        {
+          "expectVisible": "basket-empty"
+        },
+        {
+          "expectText": "basket-count",
+          "contains": "0"
+        }
+      ]
+    },
+    {
+      "id": "mobile-layout",
+      "title": "Mobile shows sidebar above a 2-column grid",
+      "page": "home",
+      "owner": "builder:catalog",
+      "priority": "should",
+      "steps": [
+        {
+          "viewport": "mobile"
+        },
+        {
+          "goto": "/"
+        },
+        {
+          "expectVisible": "category-sidebar"
+        },
+        {
+          "expectCount": "book-card",
+          "eq": 20
+        },
+        {
+          "expectVisible": "basket-count"
+        }
+      ]
+    }
+  ],
+  "data": {
+    "module": "js/data.js",
+    "export": "books",
+    "count": 100,
+    "fields": {
+      "id": {
+        "type": "string",
+        "required": true,
+        "example": "1"
+      },
+      "title": {
+        "type": "string",
+        "required": true,
+        "example": "A Light in the Attic"
+      },
+      "category": {
+        "type": "string",
+        "required": true,
+        "enum": [
+          "Travel",
+          "Mystery",
+          "Historical Fiction",
+          "Sequential Art",
+          "Classics",
+          "Philosophy",
+          "Romance",
+          "Womens Fiction",
+          "Fiction",
+          "Childrens",
+          "Religion",
+          "Nonfiction",
+          "Music",
+          "Default",
+          "Science Fiction",
+          "Sports and Games",
+          "Add a comment",
+          "Fantasy",
+          "New Adult",
+          "Young Adult",
+          "Science",
+          "Poetry",
+          "Paranormal",
+          "Art",
+          "Psychology",
+          "Autobiography",
+          "Parenting",
+          "Adult Fiction",
+          "Humor",
+          "Horror",
+          "History",
+          "Food and Drink",
+          "Christian Fiction",
+          "Business",
+          "Biography",
+          "Thriller",
+          "Contemporary",
+          "Spirituality",
+          "Academic",
+          "Self Help",
+          "Historical",
+          "Christian",
+          "Suspense",
+          "Short Stories",
+          "Novels",
+          "Health",
+          "Politics",
+          "Cultural",
+          "Erotica",
+          "Crime"
+        ]
+      },
+      "price": {
+        "type": "number",
+        "required": true,
+        "min": 10,
+        "max": 60,
+        "example": 51.77
+      },
+      "rating": {
+        "type": "number",
+        "required": true,
+        "min": 1,
+        "max": 5
+      },
+      "stock": {
+        "type": "number",
+        "required": true,
+        "min": 1,
+        "max": 22,
+        "example": 22
+      },
+      "upc": {
+        "type": "string",
+        "required": true,
+        "example": "a897fe39b1053632"
+      },
+      "reviewCount": {
+        "type": "number",
+        "required": true,
+        "min": 0,
+        "max": 0
+      },
+      "description": {
+        "type": "string",
+        "required": true
+      },
+      "image": {
+        "type": "string",
+        "required": true
+      },
+      "imageSource": {
+        "type": "string",
+        "required": true
+      }
+    },
+    "rules": [
+      "/^[0-9]+$/.test(r.id)",
+      "Number.isInteger(r.rating)",
+      "Number.isInteger(r.stock) && r.stock > 0",
+      "Math.round(r.price * 100) === r.price * 100 || Math.abs(Math.round(r.price * 100) - r.price * 100) < 1e-6",
+      "/^[0-9a-f]{16}$/.test(r.upc)",
+      "r.title.length <= 120",
+      "r.description.length >= 200",
+      "r.reviewCount === 0"
+    ],
+    "note": "orchestrator: added imageSource so every mock image records where it came from (media-and-asset-pipeline.md) | orchestrator, heal round 1: category enum widened from 12 to the 50 measured sidebar categories (capture pages[0].links) and count 60->100; the 12-category sidebar was ~800px shorter than the target on mobile (visual 0.64). Every category needs >=1 book."
+  },
+  "thresholds": {
+    "visual": 0.8
+  }
+}

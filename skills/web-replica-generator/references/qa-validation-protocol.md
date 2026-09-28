@@ -1,119 +1,68 @@
-# Autonomous Multi-Modal Self-Validation & QA Protocol
+# QA & Self-Healing Protocol
 
-An autonomous coding agent must never declare a web replica "complete" simply because code was written without syntax errors. The agent must independently start the dev server, navigate to the running application via a browser subagent or programmatic test runner, execute end-to-end user flows, inspect the DOM for layout defects, and audit browser console logs.
+A replica isn't done because its code was written. It's done when `check_replica.js` reports **zero errors**, or when the fix loop has run out and the remaining gaps are reported honestly.
 
----
-
-## 1. The 5-Gate Validation Pipeline
-
-```mermaid
-graph TD
-    A[Gate 1: Static Code & Asset Lint] --> B[Gate 2: Dev Server Launch & Health Check]
-    B --> C[Gate 3: Browser Runtime & Console Zero-Error Audit]
-    C --> D[Gate 4: Viewport & Layout Overflow Sweep]
-    D --> E[Gate 5: Interactive E2E User Journey Execution]
-    E --> F{All Gates Passed?}
-    F -- No --> G[Self-Healing & Auto-Correction]
-    G --> B
-    F -- Yes --> H[Certified High-Fidelity Replica]
+```
+check_replica.js ─► report.json ─┬─ 0 errors ───────────────► report to user
+   ▲                             └─ errors ─► Fixers (by owner, parallel) ─┐
+   └──── re-check (≤ healRounds, stop when errors and fidelity both stall) ◄┘
 ```
 
----
+## What gets checked
 
-## 2. Gate Specifications & Failure Criteria
-
-### Gate 1: Static Code, Fixture, & Multi-Layer Asset Verification
-- **Code Syntax Check**: Verify all CSS, HTML, and JS files have valid syntax.
-- **Multi-Layer Image Hygiene**:
-  - **Layer A (Static HTML)**: Audits any static `<img>` tags in `index.html` for empty `src`, missing `alt`, or dummy filenames.
-  - **Layer B (JavaScript Data Fixtures)**: Scans `js/data.js`, `*.json`, and JavaScript files to audit all dynamically defined product assets (`primary`, `gallery`, `thumbnail`, `src`). Catches empty strings (`""`), placeholders (`"#"`), or undefined paths before runtime.
-  - **Layer C (Hydrated DOM Analysis)**: When executed against `--url`, uses headless Chrome to capture the post-hydration rendered DOM and verify every dynamically mounted `<img>` element in the live document.
-- **Fail Condition**: Any empty image source, unverified placeholder, or missing image fixture triggers an immediate failure.
-
-### Gate 2: Dev Server Health Check
-- Run `npm run dev` (or simple HTTP server) using `run_command` with `IsDaemon=true` or appropriate background execution.
-- Validate that the server responds with HTTP 200 within 5000ms:
-  ```bash
-  curl -s -o /dev/null -w "%{http_code}" http://localhost:5173/
-  ```
-
-### Gate 3: Runtime Console & Network Audit (Zero-Tolerance Policy)
-Deploy `browser_subagent` to load `http://localhost:5173/` and evaluate the window error buffer:
-```javascript
-(() => {
-  const errors = window.__agent_errors || [];
-  const brokenImages = Array.from(document.querySelectorAll('img'))
-    .filter(img => !img.complete || img.naturalWidth === 0)
-    .map(img => img.src);
-
-  return {
-    errorCount: errors.length,
-    errors: errors,
-    brokenImages: brokenImages,
-    hasBrokenImages: brokenImages.length > 0
-  };
-})();
-```
-- **Pass Threshold**: `errorCount === 0` AND `brokenImages.length === 0`.
-
-### Gate 4: Viewport Responsiveness & Layout Overflow Sweep
-Automate inspection across three distinct viewport dimensions:
-1. **Desktop**: `1440 x 900`
-2. **Tablet**: `768 x 1024`
-3. **Mobile**: `375 x 812`
-
-At each viewport, execute the **Horizontal Overflow Diagnostic**:
-```javascript
-(() => {
-  const docWidth = document.documentElement.offsetWidth;
-  const scrollWidth = document.documentElement.scrollWidth;
-  const overflows = [];
-
-  if (scrollWidth > docWidth) {
-    document.querySelectorAll('*').forEach(el => {
-      const rect = el.getBoundingClientRect();
-      if (rect.right > docWidth) {
-        overflows.push({
-          tag: el.tagName,
-          id: el.id,
-          className: el.className,
-          right: rect.right,
-          docWidth: docWidth
-        });
-      }
-    });
-  }
-
-  return {
-    hasHorizontalScrollbar: scrollWidth > docWidth,
-    scrollWidth,
-    docWidth,
-    overflowCulprits: overflows.slice(0, 5)
-  };
-})();
-```
-- **Pass Threshold**: `hasHorizontalScrollbar === false` on all three viewports.
-
-### Gate 5: Interactive E2E User Journey Execution
-The agent must verify that all dynamic state loops function end-to-end:
-
-| Step | User Action | Expected Observable State Change |
-| :--- | :--- | :--- |
-| **5.1** | Type `"headphones"` in search bar | Product grid filters dynamically; search counter updates; result title displays query. |
-| **5.2** | Click `"Prime"` checkbox in sidebar | Only items with `isPrime === true` remain visible in the grid. |
-| **5.3** | Click on a product card | Application transitions to Product Detail Page (PDP); breadcrumbs update; gallery displays selected item. |
-| **5.4** | Click gallery secondary thumbnail | Main hero image switches smoothly to the thumbnail preview. |
-| **5.5** | Click `"Add to Cart"` button | Cart badge increments from `0` to `1`; slide-over cart drawer animates into view; subtotal displays item price. |
-| **5.6** | Increase quantity in drawer to `2` | Subtotal doubles accurately in real-time. |
-| **5.7** | Refresh the browser page (`F5`) | Cart persists with count `2` and correct items via `localStorage`. |
-| **5.8** | Press `Escape` key | Cart drawer closes gracefully; focus returns to main content. |
-
----
-
-## 3. Automated Validation Script (`scripts/audit_replica.js`)
-
-Autonomous agents can run the pre-configured Node.js audit script directly in their workflow:
 ```bash
-node scripts/audit_replica.js --url http://localhost:5173 --verbose
+node <skill>/scripts/check_replica.js --dir <replica> --target <replica>/target                     # full check
+node <skill>/scripts/check_replica.js --dir <replica> --owner <owner> --only feature                # one owner's features
+node <skill>/scripts/check_replica.js --dir <replica> --owner <owner> --only visual --target <replica>/target
+node <skill>/scripts/check_replica.js --dir <replica> --only visual:detail/mobile --target <replica>/target   # one failure id
+node <skill>/scripts/check_replica.js --dir <replica> --only data                                   # no browser
 ```
-If any check fails, the script outputs structured JSON diagnosing the root cause so the agent can self-correct immediately.
+
+- **It serves itself.** Without `--url` the checker starts its own static server for `--dir` on a free port and stops it when done. Don't start `npx serve` for checks. Pass `--url` only to check a replica that's already hosted elsewhere.
+- **It runs in parallel.** Page × viewport checks and features run concurrently in separate browser contexts (`--concurrency`, default 6). A full check takes about 1 minute.
+- **`--owner <o>`** runs only that owner's pages (the page checks) and that owner's features. The data check runs only without `--owner` or with `--owner data`. builder:shell owns no page, so its visual pass uses `--only visual:<page id>`.
+- **`--only <kind>[:<id>]`** runs one kind (`smoke`, `layout`, `visual`, `a11y`, `feature`, `data`) or one failure id from `report.json`. A page failure id loads just that page × viewport.
+- Every run rewrites `report.json`. Agents checking in parallel read the failures printed by their own run.
+
+| Kind | Checked on | Fails when | Severity |
+|---|---|---|---|
+| `smoke` | every page × 1440/768/375 | console error, uncaught exception, request failed or ≥400, image with empty src or `naturalWidth 0` | error |
+| `layout` | every page × 1440/768/375 | `scrollWidth > clientWidth`. The message lists the 5 elements that stick out furthest. | error |
+| `feature` | each `spec.features[]`, in a fresh browser | any step fails. The message gives the step number and what it got vs. wanted. | error (`must`) / warn (`should`) |
+| `data` | `spec.data.module` imported in Node | fewer than `count` records (the scaffold seed fails only this until the Data agent's swap), a duplicate id, a type/range/enum violation, or a rule is false | error |
+| `visual` | every page × viewport, with `--target` | layout similarity is below `spec.thresholds.visual` | warn |
+| `a11y` | every page at desktop | axe-core serious or critical violations | warn |
+
+**Visual score.** Both screenshots are shrunk to 160 px wide, compared with pixelmatch, and the result is multiplied by the ratio of their heights. At that size text turns into bars and photos into colour blocks, so the score measures layout, colour and spacing rather than the exact words. As a rough guide: ≥ 0.9 is very close, 0.8–0.9 is recognisably the same page, and < 0.6 is a different layout.
+
+**What to look at.** Each visual failure has a `side` image, `report/side-<page>-<vp>.png`: the target on the left and the replica on the right, top 1600 px. `Read` it; it's the fastest way to see what differs, and there's no need for crop scripts. The run also writes the replica's full screenshot (`report/page-<page>-<vp>.png`) and `report/diff-<page>-<vp>.png`, where red marks the mismatches.
+
+Every failure carries `owner` and `files` from the spec, so it goes straight to the agent that owns those files.
+
+## The fix loop
+
+The build workflow runs this loop itself; by hand, follow the same steps.
+
+1. **Group** the `error` failures by `owner`, and dispatch one Fixer per owner in one message ([agents/fixer.md](agents/fixer.md)). Add each owner's `visual` warnings too, lowest score first (a11y warnings are reported, not healed).
+2. **Re-check.** Fixers re-check just their own failures with `--owner <owner> --only <failure id>`. Afterwards the full check runs once.
+3. **Stop** after `healRounds` rounds (default 2, never more than 3), or as soon as a round improves neither the error count nor `fidelityAvg`. More rounds rarely help at that point, and a fresh look at the spec usually does.
+4. A failure caused by a shared file is fixed in that file (builder:shell's header, a `scaffold` file), never compensated for in a view. A Fixer that edits a `scaffold` file says so.
+5. **Never** change a feature's steps or a threshold to make a check pass. If a step doesn't match what the target actually does, fix the step and add a `note` giving the reason. That's a spec correction, not a fix.
+
+## Diagnosing common failures
+
+| Symptom in report.json | Usual root cause | Fix |
+|---|---|---|
+| `smoke`: `uncaught: X is not a function` | a view calls a store, ui or data export that doesn't exist | check the name against the generated API ([spec-schema.md](spec-schema.md#what-scaffold-generates)) and `data.js` |
+| `smoke`: `HTTP 404: /js/views/x.js` | a page's `module` has no file | re-run `node <skill>/scripts/scaffold_replica.js --dir <replica>`: it writes missing stubs and leaves existing files alone |
+| `smoke`: `HTTP 404: /assets/img/<key>.jpg` | the image download missed that key | the Data agent adds fallback keywords to `assets/images.manifest.json` and re-runs `find_images.js --manifest` |
+| a page shows the first page's content (its features and visual fail) | its `pattern` doesn't match its `route`, and an unmatched hash goes to `pages[0]` | fix `pattern` in the spec, specific patterns before general ones, then regenerate the router: `rm <replica>/js/router.js && node <skill>/scripts/scaffold_replica.js --dir <replica>` |
+| `layout` culprits are cards or grids at 375 | fixed `width`, a flex child without `min-width: 0`, a long unbroken title | use `minmax(0,1fr)` columns and `overflow-wrap: anywhere` |
+| `feature`: `x: count 0` | missing or misspelled `data-testid`, or the element isn't rendered until later | add the testid as named in the step; render it from store state (app.js re-renders on every store change) |
+| `feature` passes before `reload` but fails after | key not in `spec.state.persist` | the orchestrator adds it to the spec, then regenerates just the store: `rm <replica>/js/store.js && node <skill>/scripts/scaffold_replica.js --dir <replica>` |
+| `visual` low only on mobile | the target stacks columns, hides the sidebar or shows a hamburger | copy the breakpoint behaviour from `screens/*-mobile.png` |
+| `visual` score capped by `heightRatio` | the replica is much shorter or longer than the target | add or remove sections; match section heights |
+
+## Checking the checker
+
+After changing `check_replica.js`, run it against a replica with known bugs (a broken image, a 900 px-wide div, a counter that isn't persisted, a data record out of range). Each bug must appear in `report.json`, and the exit code must be 1.

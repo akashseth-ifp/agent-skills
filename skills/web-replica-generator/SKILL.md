@@ -1,233 +1,139 @@
 ---
 name: web-replica-generator
 description: >-
-  Use this skill to research, architect, generate, and self-validate high-fidelity,
-  production-grade interactive web replicas from a target concept or URL (e.g.,
-  amazon.com, stripe.com, airbnb.com). Enforces autonomous multi-modal reconnaissance,
-  design token extraction, rich synthetic data generation, interactive state engineering,
-  and programmatic self-validation with zero console error tolerance.
+  Build a high-fidelity, interactive replica of a website from its URL (e.g. amazon.com, stripe.com,
+  airbnb.com, an admin dashboard). Measures the real site with Playwright (screenshots, computed styles,
+  real content samples), turns that into a spec of features and data, builds the views in parallel with
+  subagents, then proves the result with generated Playwright tests and a visual fidelity score, and
+  fixes failures in a bounded self-healing loop. Use when asked to clone, replicate, recreate or mock up
+  a real website or web app.
 ---
 
-# Web Replica Generator Skill Specification
+# Web Replica Generator
 
-An autonomous execution protocol instructing an AI coding agent to systematically clone, architect, implement, and self-validate pixel-precise, highly interactive web applications from a target URL or product concept.
+You are the **orchestrator**. You start the build workflow, which captures the target, gets a spec written, scaffolds the foundation, builds the shell, the views and the data in parallel, then checks and heals. You review what comes back, stamp the cost and report to the user.
 
----
+**Rule 0: measure, don't recall.** Colours, fonts, sizes, content shapes and features come from `target/capture.json` and the screenshots, not from what you remember about the brand. If the site can't be measured, say so in the spec (`"measured": false`) and in your final report.
 
-## 1. Skill Overview & Core Principles
-
-A high-fidelity replica is **not** a static mockup or a generic template. It is a fully responsive, interactive application that captures the aesthetic nuances, design tokens, component hierarchies, state machines, and micro-interactions of the target platform.
-
-### Core Tenets
-1. **Zero Generic Defaults**: Never use unstyled inputs, standard browser focus outlines, or unformatted text. Every control must reflect the target’s specific styling.
-2. **Zero Missing Assets**: Never leave broken `<img>` tags (`src=""`, `src="#"`, or missing assets). Use high-resolution verified CDN images (Unsplash) or precise inline SVGs.
-3. **Deterministic State**: Carts, search filters, modal drawers, and pagination must be powered by a reactive client-side store and persisted in `localStorage`.
-4. **Autonomous Self-Validation**: The agent must launch the local dev server, run programmatic layout checks, and inspect the application using a browser subagent before completing the task.
-
----
-
-## 2. Directory Structure of this Skill
-
-```text
-skills/web-replica-generator/
-├── SKILL.md                              # This authoritative operational specification
-├── scripts/
-│   ├── audit_replica.js                  # Automated QA verification script
-│   └── extract_tokens.js                 # CSS token and color palette harvester
-├── references/
-│   ├── reconnaissance-playbook.md        # URL scraping, DOM analysis, and anti-bot bypass
-│   ├── design-token-system.md            # CSS variable conventions, typography, and elevation
-│   ├── state-and-synthetic-data.md       # Data schemas, mock catalog, and state stores
-│   ├── media-and-asset-pipeline.md       # Multi-tier image, video, SVG, and resilience engine
-│   └── qa-validation-protocol.md         # 5-gate self-validation and browser testing rules
-└── examples/
-    └── amazon-clone-walkthrough.md       # Comprehensive case study cloning Amazon.com
-```
-
----
-
-## 3. Autonomous Execution Workflow
-
-The agent must execute the replica workflow in six sequential phases:
+## Files and their owners
 
 ```
-[Phase 1: Reconnaissance] ➔ [Phase 2: Architecture] ➔ [Phase 3: Design Tokens]
-           │
-           ▼
-[Phase 4: Synthetic Data & State] ➔ [Phase 5: Synthesis] ➔ [Phase 6: Self-Validation]
+<replica>/                    the output project, an absolute path (default: ./<site>-replica)
+├── .start                    touched when the build starts; its mtime gives the minutes in the report
+├── target/                   capture_target.js output: capture.json, screens/, states/
+├── spec.json                 the contract (the Analyst writes it, then only you edit it)
+├── css/tokens.css, js/store.js, js/router.js, js/app.js, js/ui.js     ← scaffold (generated, nobody edits it)
+├── index.html, css/base.css, js/shell.js                               ← builder:shell (header, nav, drawers, popovers, footer)
+├── js/data.js, assets/img/, assets/images.manifest.json                ← data (seed from scaffold, then the full set)
+├── css/<view>.css, js/views/<view>.js                                  ← one builder:<name> per group of views
+└── report.json, report/      check_replica.js output, incl. report/side-<page>-<vp>.png per visual failure
 ```
 
----
+`<skill>` is this skill's directory, the one holding this file. Run `npm install` in `<skill>` once. If Playwright's Chromium is missing, the scripts fall back to the system Chrome, or you can run `npx playwright install chromium`.
 
-### Phase 1: Target Reconnaissance & Research
+The spec and report formats, and the runtime API that scaffold generates (store, router, ui, app, the shell and view contract), are in [references/spec-schema.md](references/spec-schema.md).
 
-**Goal**: Extract the target's design system, layout anatomy, interactive widgets, and data contract.
+## 1. Run the build workflow (primary path)
 
-1. **Access Assessment**:
-   - Inspect the target URL using `read_url_content` or a headless `curl` request.
-   - If blocked by WAF, CAPTCHA, or rate limits (e.g. HTTP 403/429), activate the **Synthetic Design System Reconstruction** protocol described in [reconnaissance-playbook.md](./references/reconnaissance-playbook.md).
-2. **Visual & DOM Extraction**:
-   - Deploy `browser_subagent` to capture desktop (1440px), tablet (768px), and mobile (375px) views.
-   - Harvest computed styles (colors, font families, font sizes, margins, border radii) using `scripts/extract_tokens.js`.
-3. **Component Inventory**:
-   - Deconstruct the UI into:
-     - **Shell & Navigation**: Mega-menus, search bar with category picker, location selector, user profile flyout, cart counter.
-     - **Main Content**: Dynamic carousels, category grid cards, product feeds.
-     - **Faceted Catalog**: Sidebar filters (brands, price, rating, badges), sort controls.
-     - **Detail Views (PDP)**: Multi-angle thumbnail galleries, specs tables, reviews, Buy Box.
-     - **Slide-Over Drawers / Overlays**: Shopping cart drawer, mobile navigation drawer.
-4. **Deliverable**: Create a concise Reconnaissance Plan artifact documenting colors, fonts, layout grids, and the primary interactive flows.
+Invoking this skill is the user's opt-in to this workflow.
 
----
+```js
+Workflow({ scriptPath: '<skill>/workflows/build-replica.js',
+           args: { url: '<url>', journey: ['<listing-url>', '<detail-url>'], replica: '<abs replica>',
+                   skill: '<abs skill>', focus: '<what the user asked for>', maxBuilders: 3, healRounds: 2 } })
+```
 
-### Phase 2: System Architecture & Technical Stack
+- `journey`, `focus`, `maxBuilders` and `healRounds` are optional. Omit `journey` only when you don't know the journey (see the capture tips).
+- `maxBuilders` counts view Builders; builder:shell and Data come on top. Raise it above 3 only for more than 6 views.
+- `healRounds` defaults to 2. Never pass more than 3.
 
-**Goal**: Structure a scalable, zero-friction project directory.
+It writes `<replica>/.start`, runs every phase and returns `{ final, rounds, history, agents, owners, reconstructed, served, notes }`: `final` is the last check's summary and failures, `history` the errors and fidelity after each check, `served` what the site showed this machine (localization, hidden prices). Time targets: capture 1–3 min, spec 2–5, scaffold under 1, build 6–15, check about 1, heal 3–10.
 
-1. **Stack Selection**:
-   - **Default Modern Modular Architecture**: Clean HTML5, modular CSS (`tokens.css`, `components.css`, `layout.css`), and modern ES modules (`store.js`, `search.js`, `app.js`).
-   - If a modern framework is requested or required, initialize via `npx -y vite@latest ./ --template react-ts` or standard tooling.
-2. **File Organization**:
-   ```text
-   replica-project/
-   ├── index.html              # Semantic HTML5 shell with ARIA dialogs & landmarks
-   ├── css/
-   │   ├── tokens.css          # Design tokens (colors, typography, spacing, shadows)
-   │   ├── base.css            # Resets, typography, and page container
-   │   ├── components.css      # Buttons, badges, star ratings, cards, inputs
-   │   ├── header.css          # Multi-tier sticky header, search bar, dropdowns
-   │   ├── catalog.css         # Faceted filters, product grid, deal tags
-   │   ├── pdp.css             # Product detail view, gallery, buy box
-   │   └── drawer.css          # Cart slide-over drawer, backdrop overlays
-   └── js/
-       ├── data.js             # 25+ rich synthetic records with realistic attributes
-       ├── store.js            # Reactive store with localStorage persistence
-       ├── search.js           # Instant faceted search, filter, and sort algorithms
-       ├── router.js           # Lightweight view/hash switcher (home, search, pdp, cart)
-       └── app.js              # DOM bindings, event handlers, micro-interactions
+No Workflow tool, or a phase failed? Use the [manual path](#3-manual-path-no-workflow-tool). Every phase leaves its output on disk, so start from the phase that failed.
+
+### Capture tips
+
+- **Pass the journey.** Automatic link picking often lands on side pages (Amazon Music). Give the listing and detail URLs in `journey`. To get a real detail URL, capture the listing first and take one from `cardGroups[].samples[].links`.
+- **Check what the site served you.** Big sites localize by IP address (Amazon showed "Deliver to India" and hid prices and Add to Cart). Anything the capture couldn't see gets reconstructed in the site's measured visual language. It goes in `spec.reconstructed` and in the final report.
+- **Very long pages** (a product page with brand marketing images, an endless feed): set `pages[].visualMaxHeight` so the visual score covers only what the replica is meant to match: a number for every viewport, or `{ "desktop": 4000, "mobile": 2500 }` per viewport (e.g. a mobile page that scrolls an inner container).
+- **BLOCKED** in the capture output: follow "Blocked targets" in [reconnaissance-playbook.md](references/reconnaissance-playbook.md).
+- Mobile screenshots use a phone user agent, so they show the site's real mobile layout.
+
+## 2. Review, stamp, report
+
+**Review the result.**
+- Read `final` and `notes` from the result (or `<replica>/report.json` → `summary`): errors, warnings, `featureCoverage`, `fidelity` per page/viewport, what each owner couldn't fix.
+- `Read` the two or three `report/side-*.png` with the lowest fidelity (target left, replica right). Look for what the score misses: wrong imagery, a missing section, a broken header.
+- Go through the [spec checklist](#spec-checklist) and the [guardrails](#guardrails) on the finished replica.
+- A `must` feature still failing, or a guardrail broken: dispatch one Fixer for that owner ([agents/fixer.md](references/agents/fixer.md)), then run the full check once. That counts as a heal round.
+
+**Stamp the cost** into `report.json`: `rounds` and `agents` from the result (plus any Fixer you added), minutes since `.start`:
+
+```bash
+node -e 'const fs=require("fs"),[d,rounds,agents]=process.argv.slice(1),f=d+"/report.json",r=JSON.parse(fs.readFileSync(f));r.cost={rounds:+rounds,agents:+agents,minutes:Math.round((Date.now()-fs.statSync(d+"/.start").mtimeMs)/60000)};fs.writeFileSync(f,JSON.stringify(r,null,2))' <replica> <rounds> <agents>
+```
+
+**Report to the user.**
+- **Numbers:** errors and warnings, feature coverage, fidelity per page/viewport, heal rounds, agents used and minutes.
+- **What's measured vs reconstructed**, and the known gaps.
+- **How to run it:** `npx serve <replica>`.
+
+## 3. Manual path (no Workflow tool)
+
+These are the same phases, dispatched with the `Agent` tool. Run `mkdir -p <replica> && touch <replica>/.start` first.
+
+1. **Capture** (1–3 min). `Read` `target/screens/*-desktop.png`, `*-mobile.png` and `states/*.png`. They are the ground truth for the rest of the run.
+   ```bash
+   node <skill>/scripts/capture_target.js <url> [<journey-url> …] --out <replica>/target --pages 3
    ```
+2. **Spec.** Dispatch one Agent with [agents/analyst.md](references/agents/analyst.md). Review `spec.json` against the [spec checklist](#spec-checklist). From here on only you edit `spec.json`. If you change a feature, write the reason in its `note`.
+3. **Scaffold** (~1 s). This generates tokens, store, router, app and ui, a starter `index.html` and `base.css`, stub views, a stub `shell.js`, and the seed `js/data.js` from `spec.data.seed`. It never overwrites an existing file, so a re-run is safe.
+   ```bash
+   node <skill>/scripts/scaffold_replica.js --dir <replica>
+   ```
+4. **Build.** In **one message**, dispatch builder:shell ([agents/shell.md](references/agents/shell.md)), one Builder per view owner ([agents/builder.md](references/agents/builder.md)) and the Data agent ([agents/data.md](references/agents/data.md)). They all start at once, because the seed data exists from minute 0. Fill each template's `<…>` placeholders from the spec. Each agent writes only its own files, self-checks with `--owner` (at most 3 checker runs) and returns 10 lines or fewer.
+5. **Check** (~1 min). The checker serves the replica itself on a free port, so don't start a server.
+   ```bash
+   node <skill>/scripts/check_replica.js --dir <replica> --target <replica>/target
+   ```
+   `report.json` lists each failure's `kind`, `owner`, `files`, `message`, `screenshot` and, for visual failures, `side`. [qa-validation-protocol.md](references/qa-validation-protocol.md) explains each check.
+6. **Heal.** Group the `error` failures by owner and dispatch one Fixer per owner in one message ([agents/fixer.md](references/agents/fixer.md)). Include each owner's `visual` warnings too, worst score first. Re-run step 5. Follow the [heal rules](#heal-rules).
+7. **Review, stamp, report** as in section 2.
 
----
+## Spec checklist
 
-### Phase 3: Design Tokens & Layout Foundations
+- Every interactive thing visible in the screenshots is a feature with `steps`. The main user journey is `"priority": "must"`.
+- Every file in `files` has exactly one owner. Every page has `pattern`, `module` and `owner`. Header, nav, drawer, popover and footer features belong to `builder:shell`.
+- `data.seed` has 6–10 records, including every fixture a step relies on (the id in a `goto` route, the record a search term must find). Every `data.extras` export has a seed.
+- `tokens` are values from `capture.json`. `data.fields` match the real samples; `locale`, `currency` and `currencyDigits` match the price format in the samples. `brand` is set.
+- The stack follows the rule below.
 
-**Goal**: Establish a pixel-accurate design token foundation before writing component markup.
+**Stack decision.** Use plain HTML + ES modules (`"stack": "vanilla"`) by default: there is no build step, and the fix loop is edit → reload. Use Vite + React (`"stack": "react"`) only when there are more than 5 views, the same widgets are reused across views (for example dashboards), or the user wants code to hand to developers. With React, `files` lists components (`src/components/X.jsx`), and each Builder owns its components. The scaffold and the workflow generate the vanilla stack only. For React, take the manual path and write the foundation yourself in place of step 3.
 
-1. **Establish Tokens**:
-   - Define all custom properties in `css/tokens.css` following [design-token-system.md](./references/design-token-system.md).
-   - Configure semantic colors, typography scale (`--font-family-sans`, fluid font sizes), 4px/8px spacing grid, multi-layered elevation shadows, and transition curves.
-2. **Responsive Grid Foundations**:
-   - Establish CSS Grid and Flexbox layouts supporting:
-     - Desktop (`1024px` - `1440px+`): Multi-column card grids, sticky sidebar filters.
-     - Tablet (`768px` - `1023px`): Collapsed sidebar, 2-3 column grids.
-     - Mobile (`320px` - `767px`): Single-column feed, full-width search, slide-in navigation drawer.
+## Heal rules
 
----
+- **Stop** after `healRounds` rounds (default 2, never more than 3), or when a round improves neither the error count nor `fidelityAvg` (a rise under 0.01 counts as no gain). Whatever remains is a known gap in your report, not something to hide.
+- **Never** edit a test (`spec.features[].steps`) or a threshold to make a check pass. If a step is genuinely wrong (for example it doesn't match what the target does), fix the step and write the reason in `note`.
+- Files owned by `scaffold` are edited only when a failure is traced to them, and the Fixer says so in its summary.
 
-### Phase 4: Synthetic Data & Reactive State Engine
+## Guardrails
 
-**Goal**: Populate the application with authentic-feeling data and a responsive state store.
+- The replica is for internal demos and prototyping. Keep the footer's `data-replica-note` "not affiliated" line.
+- Use the target's logo only as captured for the demo. Don't add other trademarks or harvested product photos. Mock images come from [media-and-asset-pipeline.md](references/media-and-asset-pipeline.md).
+- No working login, payment or data-collection forms. They should look real but submit to the local store only.
+- Don't try to defeat CAPTCHAs or bot protection. Take the "Blocked targets" path instead.
 
-1. **Synthetic Data Engine**:
-   - Implement `js/data.js` according to [state-and-synthetic-data.md](./references/state-and-synthetic-data.md).
-   - Include at least 20-30 products across 4-5 categories with:
-     - Unique IDs (e.g. ASINs).
-     - Realistic product titles and brand names.
-     - Fractional star ratings (e.g. 4.6) and high review counts.
-     - Dual pricing (List Price strikethrough, Current Price, Savings percentage).
-     - Status badges ("Best Seller", "Prime", "Limited Time Deal").
-     - High-resolution verified image URLs and multi-image galleries (following [media-and-asset-pipeline.md](./references/media-and-asset-pipeline.md)).
-2. **Reactive State Store**:
-   - Implement `js/store.js` managing:
-     - `cart`: Array of `{ product, quantity }` saved to `localStorage`.
-     - `searchQuery` and `selectedCategory`.
-     - `activeFilters`: Brands array, price range, Prime only, minimum rating.
-     - `activeView`: Dynamic switcher between Home, Catalog/Search, and Product Detail.
-     - `drawerOpen`: Boolean controlling cart drawer visibility.
-3. **Instant Search & Filter Pipeline**:
-   - Implement multi-criteria client-side filtering with debounced search input (150ms).
+## References
 
----
-
-### Phase 5: Synthesis & Component Assembly (The Build Loop)
-
-**Goal**: Implement the user interface and bind reactive behaviors.
-
-1. **Global Header & Navigation Shell**:
-   - Sticky header with logo, dynamic location selector, category select dropdown, search input, clear button, and search submit button.
-   - User account & lists flyout trigger.
-   - Interactive cart icon with live counter badge connected to `store.getCartCount()`.
-   - Subnav banner with "All" department menu trigger.
-2. **Hero Carousel & Showcase Grids**:
-   - Multi-slide banner carousel with forward/backward arrow buttons and bottom vertical gradient scrim fading seamlessly into the canvas.
-   - Quad-card and single-card product decks ("Deals in Electronics", "Top Categories", "Continue Shopping").
-3. **Faceted Search Catalog View**:
-   - Interactive sidebar filters with checkboxes for Brand, Prime, Rating, and Price.
-   - Real-time catalog re-rendering upon filter toggling.
-   - Sort dropdown (Featured, Price: Low to High, Price: High to Low, Customer Reviews).
-4. **Product Detail Page (PDP)**:
-   - High-fidelity multi-image gallery with hover/click thumbnail switcher.
-   - Rating summary with star breakdown popover.
-   - Authentic Buy Box with stock indicator ("Only 3 left in stock - order soon"), shipping countdown, quantity dropdown, "Add to Cart", and "Buy Now".
-5. **Slide-Over Dynamic Cart Drawer**:
-   - Smooth slide-in drawer from the right edge with backdrop blur overlay.
-   - Real-time item listing with thumbnail, title, price, quantity increment/decrement buttons, and delete trigger.
-   - Running subtotal and simulated checkout button.
-
----
-
-### Phase 6: Autonomous Multi-Modal Self-Validation & Visual QA
-
-**Goal**: Prove the replica is functional, responsive, and defect-free before declaring completion.
-
-Follow the 5-Gate Validation Protocol in [qa-validation-protocol.md](./references/qa-validation-protocol.md):
-
-1. **Gate 1: Static & Multi-Layer Asset Verification**:
-   - Run `node scripts/audit_replica.js --dir ./ --url http://localhost:5173`
-   - Validates semantic landmarks, zero duplicate IDs, and audits images across all three layers (static HTML, JS data fixtures in `js/data.js`, and the post-hydration rendered DOM via Headless Chrome). Confirm zero empty `src` or missing assets.
-2. **Gate 2: Dev Server Launch**:
-   - Start the HTTP server using `run_command` with `IsDaemon=true`:
-     ```bash
-     npx serve -l 5173 ./ &
-     ```
-   - Verify HTTP 200 via `curl -s -I http://localhost:5173/`.
-3. **Gate 3: Browser Runtime & Console Audit**:
-   - Deploy `browser_subagent` to open `http://localhost:5173/`.
-   - Inspect console logs: **Zero uncaught exceptions allowed**.
-   - Check that all images load (`naturalWidth > 0`).
-4. **Gate 4: Viewport Overflow Sweep**:
-   - Execute the horizontal scrollbar diagnostic across 1440px, 768px, and 375px.
-   - Enforce: `document.documentElement.scrollWidth <= window.innerWidth`.
-5. **Gate 5: End-to-End User Flow Execution**:
-   - Search for a keyword -> verify catalog narrows.
-   - Toggle "Prime" filter -> verify non-Prime items disappear.
-   - Open a product -> verify gallery switching works.
-   - Click "Add to Cart" -> verify badge updates and drawer slides in.
-   - Increase quantity -> verify subtotal recalculates.
-   - Reload page -> verify cart persists.
-
----
-
-## 4. Self-Healing & Troubleshooting Matrix
-
-| Issue Encountered | Root Cause | Automated Resolution |
-| :--- | :--- | :--- |
-| **HTTP 403 / CAPTCHA on Target URL** | Target blocks automated scrapers (AWS WAF / Cloudflare). | Switch to Section 4 of [reconnaissance-playbook.md](./references/reconnaissance-playbook.md). Reconstruct design system from public specifications and verified design tokens. |
-| **Horizontal Scrollbar on Mobile** | Fixed-width element or unconstrained table/image. | Run the overflow diagnostic in Gate 4. Apply `max-width: 100%; box-sizing: border-box; overflow-x: hidden;` to offending containers. |
-| **Broken Image Assets** | Unreliable external image CDN or expired links. | Replace broken URLs with curated Unsplash IDs or scalable inline SVGs with product icon glyphs. |
-| **Cart Resets on Refresh** | Missing localStorage synchronization. | Bind `store.notify()` to `localStorage.setItem('replica_cart', ...)` on every mutation. |
-| **Search Lag or Stutter** | Search re-filtering DOM on every keystroke without debounce. | Wrap the search input event listener in a 150ms debounce timer. |
-
----
-
-## 5. Verification Checklist for Completion
-
-Before reporting the task as finished, ensure all checklist items are satisfied:
-
-- [ ] Target reconnaissance completed and design tokens cataloged in `tokens.css`.
-- [ ] No placeholder dummy text ("Lorem ipsum") or unstyled browser inputs.
-- [ ] Responsive layouts verified across Mobile (375px), Tablet (768px), and Desktop (1440px).
-- [ ] Interactive user journey (Search -> Filter -> View Details -> Add to Cart -> Modify Cart) fully operational.
-- [ ] Persistent state enabled via `localStorage`.
-- [ ] Automated audit script (`scripts/audit_replica.js`) executed and passed with 0 errors.
-- [ ] Local dev server tested and zero console errors confirmed.
+| File | Read when |
+|---|---|
+| [spec-schema.md](references/spec-schema.md) | writing or reviewing spec.json, the generated runtime API, reading report.json |
+| [workflows/build-replica.js](workflows/build-replica.js) | what each workflow phase tells its agents |
+| [agents/](references/agents/) | dispatching Analyst, builder:shell, Builders, Data, Fixer by hand |
+| [archetypes/](references/archetypes/) | the Analyst picks one; you check the spec against it |
+| [reconnaissance-playbook.md](references/reconnaissance-playbook.md) | capture fails or is blocked |
+| [design-token-system.md](references/design-token-system.md) | tokens.css and the shared atoms in base.css |
+| [state-and-synthetic-data.md](references/state-and-synthetic-data.md) | the store API and data generation |
+| [media-and-asset-pipeline.md](references/media-and-asset-pipeline.md) | images, icons, fallbacks |
+| [qa-validation-protocol.md](references/qa-validation-protocol.md) | interpreting check failures |
+| [examples/books-toscrape-walkthrough.md](examples/books-toscrape-walkthrough.md) | a full v2 run, end to end |

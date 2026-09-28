@@ -1,0 +1,35 @@
+/* Basket page: same chrome as detail (breadcrumb, h1, striped table). */
+[data-view="basket"] h1 { margin-bottom: var(--space-5); }
+[data-view="basket"] .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+[data-view="basket"] .basket-table { width: 100%; border-collapse: collapse; }
+[data-view="basket"] .basket-table th, [data-view="basket"] .basket-table td { padding: 8px; border-top: 1px solid rgb(221, 221, 221); text-align: left; vertical-align: middle; }
+[data-view="basket"] thead th { border-top: 0; border-bottom: 2px solid rgb(221, 221, 221); }
+[data-view="basket"] tbody tr:nth-child(odd) { background: var(--color-surface-table); }
+[data-view="basket"] .basket-item { display: flex; align-items: center; gap: var(--space-3); }
+[data-view="basket"] .basket-item img { width: 45px; height: 60px; object-fit: cover; flex: none; border: 1px solid rgb(221, 221, 221); }
+[data-view="basket"] .basket-price, [data-view="basket"] .basket-subtotal { white-space: nowrap; }
+[data-view="basket"] .qty { display: inline-flex; align-items: center; border: 1px solid rgb(204, 204, 204); border-radius: var(--radius-control); background: var(--color-surface); }
+[data-view="basket"] .qty button { width: 30px; height: 30px; border: 0; background: transparent; color: var(--color-brand); font: 16px/1 var(--font-sans); cursor: pointer; }
+[data-view="basket"] .qty button:hover { background: var(--color-surface-muted); }
+[data-view="basket"] .qty span { min-width: 28px; text-align: center; }
+[data-view="basket"] .basket-remove { padding: 4px 10px; border: 1px solid rgb(204, 204, 204); border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-text); font: inherit; font-size: 12px; cursor: pointer; }
+[data-view="basket"] .basket-remove:hover { background: var(--color-surface-muted); }
+[data-view="basket"] tfoot th, [data-view="basket"] tfoot td { border-top: 2px solid rgb(221, 221, 221); font-weight: 700; }
+[data-view="basket"] tfoot th { text-align: right; }
+[data-view="basket"] tfoot .price { font-size: var(--font-detail-price); }
+[data-view="basket"] .basket-actions { margin: var(--space-5) 0 0; }
+[data-view="basket"] .basket-empty { padding: var(--space-6) 0; }
+[data-view="basket"] .basket-empty p { margin: 0 0 var(--space-4); font-size: 16px; }
+
+@media (max-width: 767px) {
+  [data-view="basket"] thead { display: none; }
+  [data-view="basket"] .basket-table, [data-view="basket"] tbody, [data-view="basket"] tfoot, [data-view="basket"] tr { display: block; }
+  [data-view="basket"] tbody tr { padding: var(--space-2) 0; border-top: 1px solid rgb(221, 221, 221); }
+  [data-view="basket"] tbody td { display: flex; justify-content: space-between; align-items: center; border: 0; padding: 4px 8px; }
+  [data-view="basket"] tbody td[data-label]::before { content: attr(data-label); color: var(--color-text-muted); }
+  [data-view="basket"] .basket-item { justify-content: flex-start; }
+  [data-view="basket"] tfoot tr { display: flex; justify-content: space-between; align-items: center; }
+  [data-view="basket"] tfoot th, [data-view="basket"] tfoot td { display: block; border-top: 2px solid rgb(221, 221, 221); }
+  [data-view="basket"] tfoot td { flex: none; }
+  [data-view="basket"] tfoot th { flex: 1; }
+}
