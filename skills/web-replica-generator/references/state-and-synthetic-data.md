@@ -27,7 +27,7 @@ Put actions (`addToCart`, `toggleFilter`, …) in the view or `shell.js` that ow
 
 ## 2. Data that reads like the real site
 
-`js/data.js` exists from minute 0: scaffold writes it from `spec.data.seed` (6–10 records, including every fixture a feature step needs) and `spec.data.extras`, so Builders develop against real-looking data at once. The Data agent ([agents/data.md](agents/data.md)) then swaps in the full set, same shape, keeping every seed record. The Analyst writes the seed and the Data agent the full set by the same rules:
+`js/data.js` exists from minute 0: scaffold writes it from `spec.data.seed` (at most 6 records: every fixture a feature step needs plus 1–2 more) and `spec.data.extras`, so Builders develop against real-looking data at once. The Data agent ([agents/data.md](agents/data.md)) then swaps in the full set, same shape, keeping every seed record. The Analyst writes the seed and the Data agent the full set by the same rules:
 
 1. **Start from the samples.** `capture.json → pages[].cardGroups[].samples` holds real item text. Note the patterns in it:
    - how titles are built (brand + model + variant? truncated with "…"?) and how long they are;

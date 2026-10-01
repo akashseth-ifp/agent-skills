@@ -20,6 +20,10 @@ with an offset that cancels out a header that's too tall). Report it, so it gets
 page benefits. Files owned by "scaffold" (store.js, router.js, app.js, ui.js, tokens.css) change
 only when a failure is traced to them; if you change one, say so in your summary.
 
+Token budget: every tool call re-reads your whole context. At most 12 tool calls and 3 image
+Reads. For the spec details of your owner, run node <skill>/scripts/brief.js --dir <replica> --owner
+<owner> instead of reading spec.json; never cat a whole large file.
+
 How to work
 1. Look before you edit (Read tool). For visual failures, Read the failure's `side` image
    (report/side-<page>-<vp>.png: target left, replica right, top 1600px); fix the largest

@@ -5,10 +5,12 @@ Agents never pass work to each other in chat. These files carry it:
 | File | Written by | Read by |
 |---|---|---|
 | `replica/target/capture.json` + `replica/target/screens/*.png` | `scripts/capture_target.js` | Analyst |
-| `replica/spec.json` | Analyst (then only the orchestrator edits it) | `scaffold_replica.js`, Builders, Data, `check_replica.js`, Fixers |
+| `replica/spec.draft.json` | `scripts/draft_spec.js` (the mechanical half) | Analyst, `draft_spec.js --merge` |
+| `replica/spec.parts.json` | Analyst (the judgement half) | `draft_spec.js --merge` |
+| `replica/spec.json` | `draft_spec.js --merge` (then only the orchestrator edits it) | `scaffold_replica.js`, Builders, Data, `check_replica.js`, Fixers |
 | `replica/report.json` + `replica/report/` | `scripts/check_replica.js` | Orchestrator, Fixers |
 
-What scaffold generates from this spec is under [What scaffold generates](#what-scaffold-generates) below.
+How the Analyst's file and the draft become spec.json is under [spec.draft.json + spec.parts.json](#specdraftjson--specpartsjson) below, and what scaffold generates from the spec under [What scaffold generates](#what-scaffold-generates).
 
 ---
 
@@ -104,12 +106,12 @@ What scaffold generates from this spec is under [What scaffold generates](#what-
     },
     // JS expressions over one record `r`; every record must satisfy every rule.
     "rules": ["r.stock === 0 || r.price > 0", "r.title.length <= 120"],
-    // 6–10 records that satisfy fields + rules, including EVERY fixture a feature step relies on
+    // At most 6 records that satisfy fields + rules, including EVERY fixture a feature step relies on
     // (id "1" for /#/book/1, a Poetry book for /#/category/poetry, the record a search term must find).
     // scaffold writes them to js/data.js at once; the Data agent later swaps in the full set.
     "seed": [
       { "id": "1", "title": "A Light in the Attic", "price": 51.77, "rating": 3, "stock": 22, "genre": "Poetry", "image": "assets/img/book-1.jpg" }
-      /* … 5–9 more */
+      /* … up to 5 more */
     ],
     // Extra named exports of js/data.js, each seeded the same way.
     "extras": { "categories": ["Travel", "Mystery", "Historical Fiction", "Poetry", "Science"] }
@@ -139,6 +141,25 @@ A step is an object with one action key. A `target` value is a `data-testid`. Pr
 | `{ "expectUrl": "#/book/" }` | URL contains |
 
 Put the steps in the order a real user would do them. Keep each feature to 3–10 steps. Put one behaviour in each feature, so that a failure points at one owner.
+
+---
+
+## spec.draft.json + spec.parts.json
+
+`spec.json` is assembled from two files, so the Analyst writes only what needs judgement:
+
+```bash
+node <skill>/scripts/draft_spec.js --dir <replica>          # spec.draft.json from target/summary.json (capture.json without one)
+node <skill>/scripts/draft_spec.js --dir <replica> --merge  # spec.draft.json + spec.parts.json -> spec.json, then validate
+```
+
+- **`spec.draft.json`** (`draft_spec.js`, ~3 KB, never touches spec.json): target, brand (title segment matching the host), locale + currency + currencyDigits (the summary's money digest and page lang), measured, `stack: "vanilla"`, `thresholds`, tokens (color.brand/canvas/surface/page/text/text-muted/link/on-brand/border, font.sans/base/line/h1, radius.control, shadow.raised, each copied from the capture, missing when not measured), one page per captured page (`home` at `"/"`/`"#/"`; a URL ending in an id gives `detail` at `"#/detail/:id"` with the real id in its route; other pages a word from the URL at `"#/<id>"`; module `js/views/<id>.js`, owner `builder:<id>`, source = the capture page name), files + owners, and empty `state`, `features` and `data` (`export: "records"`, `count: 40`).
+- **`spec.parts.json`** (Analyst): features, data, state, archetype, reconstructed, page fixes and token fixes. Top-level keys replace the draft's, except:
+  - `tokens` merge per key; `null` drops a draft token.
+  - `data` merges per key, so the draft's `module` stays unless parts set it.
+  - `pages` merge by id: parts' fields override the draft page's; a new id is appended; `{ "id": "x", "remove": true }` drops a page. When parts list every kept page, their order wins.
+  - `files` are derived: the draft's scaffold / builder:shell / data entries, plus `css/<module basename>.css` and the module of every merged page (owner = the page's owner), then `parts.files` (`null` drops an entry).
+- **`--merge`** writes spec.json, then prints every problem and exits 1 (0 when valid, 2 on bad usage or a missing file). It runs scaffold's own checks (`generate()`: page ids, module paths, locale/currency, data export names, token values), then checks that every page has id/route/pattern/module/owner, that each page route opens that page (first match wins), that every `goto` matches a page pattern, that every `:id` in a route or goto is a `data.seed` id (other `…id` params only warn), that every feature owner owns a file and every page's view files are owned by that page's owner (pages sharing a module share an owner), that `state.persist` keys are in `state.initial`, and that the seed passes `data.fields` and `data.rules` (the same checks `check_replica.js --only data` runs).
 
 ---
 

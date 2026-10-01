@@ -1,10 +1,10 @@
 export const meta = {
   name: 'build-replica',
   description: 'Build a website replica end to end: capture, spec, scaffold, parallel builders + data, check, bounded heal',
-  whenToUse: 'Run by the web-replica-generator skill (see SKILL.md and references/spec-schema.md). Args: { url, journey?, replica, skill, focus?, maxBuilders?, healRounds? }',
+  whenToUse: 'Run by the web-replica-generator skill (see SKILL.md and references/spec-schema.md). Args: { url, journey?, replica, skill, focus?, maxBuilders?, healRounds?, agentType? }',
   phases: [
-    { title: 'Capture', detail: 'measure the target with capture_target.js' },
-    { title: 'Spec', detail: 'the Analyst writes spec.json' },
+    { title: 'Capture', detail: 'measure the target with capture_target.js, draft the mechanical spec with draft_spec.js' },
+    { title: 'Spec', detail: 'the Analyst writes spec.parts.json and merges it into spec.json' },
     { title: 'Scaffold', detail: 'generate the foundation and smoke-check it' },
     { title: 'Build', detail: 'shell + view builders (build, then fix) and the Data agent, concurrently' },
     { title: 'Check', detail: 'one full check_replica.js run' },
@@ -20,7 +20,8 @@ export const meta = {
 //     url: 'https://books.toscrape.com/',
 //     journey: ['<listing-url>', '<detail-url>'],     // optional: extra pages after url, in order
 //     replica: '/abs/path/books-replica', skill: '/abs/path/web-replica-generator',
-//     focus: 'optional user focus', maxBuilders: 3, healRounds: 2 } })
+//     focus: 'optional user focus', maxBuilders: 3, healRounds: 2,
+//     agentType: 'replica-worker' } })                 // optional: pin the agent type (skips the probe below)
 //
 // Returns { final, rounds, history, agents, owners, reconstructed, served, notes }. The orchestrator
 // writes the user-facing report and computes minutes from <replica>/.start (written in Capture).
@@ -35,6 +36,8 @@ for (const k of ['replica', 'skill']) if (!A[k].startsWith('/')) throw new Error
 let agents = 0
 const notes = []
 const warn = msg => { log(`warning: ${msg}`); notes.push(`warning: ${msg}`) }
+// Everything returned lands in the orchestrator's context for the rest of its session: keep each note short.
+const short = (t, n = 300) => (t && t.length > n ? t.slice(0, n - 1) + '…' : t || '')
 
 // shell-quote only when needed, so plain paths stay readable in prompts (URL queries have ? and &, paths may have spaces)
 const q = s => (/^[\w@%+=:,./-]+$/.test(String(s)) ? String(s) : "'" + String(s).replace(/'/g, "'\\''") + "'")
@@ -49,9 +52,35 @@ if (healRounds !== A.healRounds && A.healRounds !== undefined) warn(`healRounds 
 const CHECK = `node ${q(`${S}/scripts/check_replica.js`)} --dir ${qR}`
 const SCAFFOLD_FILES = ['css/tokens.css', 'js/store.js', 'js/router.js', 'js/app.js', 'js/ui.js'] // the scaffold-owned files (spec-schema.md), if the spec omits them
 const SHARED_REPORT = "Other agents run the checker at the same time and share report.json, so trust your own run's console output."
-function run(label, phaseTitle, prompt, schema, effort) {
+// replica-worker (agents/replica-worker.md) has only the file, shell and web tools: about 12k fewer tokens per turn than
+// general-purpose. It exists only once symlinked into .claude/agents (SKILL.md), so unless args.agentType pins a type,
+// the first call decides it: replica-worker, or general-purpose when the runtime can't resolve or use replica-worker.
+// ponytail: the probe isn't shared, so concurrent first calls would each probe; the first call (Capture) runs alone.
+if (A.agentType !== undefined && (typeof A.agentType !== 'string' || !A.agentType.trim())) throw new Error(`build-replica: args.agentType must be an agent type name, got ${JSON.stringify(A.agentType)}`)
+let agentType = A.agentType || null
+if (agentType) log(`agent type: ${agentType} (pinned by args.agentType)`)
+// The runtime's agentType errors all start "agent({agentType}):" (not found, denied by a permission rule, tool pool denied).
+const TYPE_ERROR = /^agent\(\{agentType\}\):|agent type\b.*\bnot found/i
+// A resumed run reuses cached calls only while they match, and the probe makes the calls depend on the agent type.
+const resume = () => `re-run with resumeFromRunId and args.agentType: '${agentType}' (Capture is kept when the agent type matches this run's)`
+async function run(label, phaseTitle, prompt, schema, effort) {
   agents++
-  return agent(prompt, { label, phase: phaseTitle, schema, agentType: 'general-purpose', ...(effort ? { effort } : {}) })
+  const call = type => agent(prompt, { label, phase: phaseTitle, schema, agentType: type, ...(effort ? { effort } : {}) })
+  if (agentType) return call(agentType)
+  try {
+    const r = await call('replica-worker')
+    agentType = 'replica-worker'
+    log('agent type: replica-worker')
+    return r
+  } catch (e) {
+    const msg = String(e?.message ?? e)
+    if (!TYPE_ERROR.test(msg)) throw e
+    agentType = 'general-purpose'
+    const why = `agent type: general-purpose (replica-worker unavailable: ${short(msg.split('\n')[0], 160)}; see the setup line in SKILL.md)`
+    log(why)
+    notes.push(why)
+    return call(agentType)
+  }
 }
 
 const str = { type: 'string' }, num = { type: 'number' }, bool = { type: 'boolean' }, numOrNull = { type: ['number', 'null'] }
@@ -64,7 +93,7 @@ const CAPTURE_SCHEMA = obj({ pages: arr(obj({ name: str, url: str, blocked: bool
 const SPEC_SCHEMA = obj({
   pages: arr(obj({ id: str, source: { type: ['string', 'null'] } })),
   owners: arr(obj({ owner: str, pages: strs, files: strs, features: strs })),
-  featureCount: num, mustCount: num, reconstructed: strs, notes: str,
+  featureCount: num, mustCount: num, reconstructed: strs, notes: str, merged: bool, specExists: bool,
 })
 const SCAFFOLD_SCHEMA = obj({ ok: bool, written: strs, smokeErrors: strs })
 const BUILD_SCHEMA = obj({ owner: str, files: strs, featuresPassing: strs, featuresFailing: strs, visual: scores, notes: str })
@@ -92,9 +121,10 @@ ${journey.length ? `   ${capCmd}` : `   ${capCmd} --pages 3
 4. Use the Read tool to look at ${R}/target/screens/<page>-desktop.png for each page and the first page's -mobile.png.
    Note what the site served this machine that a normal visitor wouldn't see: localization (country, language,
    currency), hidden prices or buy buttons, cookie or sign-in walls, empty sections.
+5. After the last capture: node ${q(`${S}/scripts/draft_spec.js`)} --dir ${qR}   (writes ${R}/spec.draft.json)
 
 Return pages (name and url from capture.json, and its blocked flag), blocked (the whole target), and served
-(one short paragraph from step 4, or "normal" if nothing was unusual).`, CAPTURE_SCHEMA)
+(one short paragraph from step 4, or "normal" if nothing was unusual).`, CAPTURE_SCHEMA, 'low')
 
 if (!capture) warn('the Capture agent returned nothing; continuing with whatever is in target/')
 const blocked = !!capture?.blocked
@@ -103,7 +133,9 @@ const served = capture?.served || 'unknown (capture returned nothing)'
 
 // ---------------------------------------------------------------- Spec
 phase('Spec')
-const spec = await run('analyst', 'Spec', `Goal: write ${R}/spec.json for a replica of ${A.url}. Edit only that file.
+const spec = await run('analyst', 'Spec', `Goal: get ${R}/spec.json written for a replica of ${A.url}. You write only
+${R}/spec.parts.json; draft_spec.js --merge combines it with ${R}/spec.draft.json (from Capture) into spec.json.
+If spec.draft.json is missing, first run: node ${q(`${S}/scripts/draft_spec.js`)} --dir ${qR}
 
 Read ${S}/references/agents/analyst.md and follow its prompt template exactly, filled with these values:
 - replica: ${R}
@@ -113,14 +145,17 @@ Read ${S}/references/agents/analyst.md and follow its prompt template exactly, f
 - measured: ${!blocked}
 - what the site served (anything the capture couldn't see goes into spec.reconstructed): ${served}
 
-When spec.json is written, return:
+When the merge has exited 0 (or you have given up on it), return:
 - pages: spec.pages in order, each as {id, source}
 - owners: every distinct owner in spec.files (scaffold, data, builder:shell and each view builder), each with its page ids
   (spec.pages[].owner), its file paths (spec.files keys) and its feature ids (spec.features[].owner)
 - featureCount, mustCount (features with priority "must"), reconstructed (spec.reconstructed)
-- notes: at most 5 lines: archetype, data entity and count, anything in the screenshots you couldn't express.`, SPEC_SCHEMA)
+- notes: at most 5 lines: archetype, data entity and count, anything in the screenshots you couldn't express.
+- merged: true when your last draft_spec.js --merge exited 0; specExists: true when ${R}/spec.json exists.`, SPEC_SCHEMA)
 
-if (!spec) throw new Error(`build-replica: the Analyst returned nothing, so there is no owner list to build from. Check ${R}/spec.json and re-run with resumeFromRunId (Capture is kept).`)
+if (!spec) throw new Error(`build-replica: the Analyst returned nothing, so there is no owner list to build from. Check ${R}/spec.json and ${resume()}.`)
+if (!spec.specExists) throw new Error(`build-replica: the Analyst finished without ${R}/spec.json (merge ${spec.merged ? 'exited 0' : 'never succeeded'}). Fix ${R}/spec.parts.json, re-run draft_spec.js --merge, then ${resume()}.`)
+if (!spec.merged) warn('draft_spec.js --merge never exited 0, so spec.json was not merged and validated by it; check it against the spec checklist')
 const owners = spec.owners || []
 for (const o of owners) if (!o.files?.length) warn(`owner ${o.owner} has no files in spec.files`)
 const pages = spec.pages || []
@@ -222,9 +257,9 @@ for (const o of builders) {
   const r = built[o.owner]
   if (!r?.build) { warn(`${o.owner}: the builder returned nothing`); continue }
   const failing = r.fix ? (r.fix.notFixed || []).map(n => n.id) : r.build.featuresFailing || []
-  notes.push(`${o.owner}: failing [${failing.join(', ')}]. ${r.build.notes || ''}${r.fix ? ` Fixer: ${r.fix.notes || ''}` : ''}`)
+  notes.push(`${o.owner}: failing [${failing.join(', ')}]. ${short(r.build.notes)}${r.fix ? ` Fixer: ${short(r.fix.notes, 200)}` : ''}`)
 }
-if (data) notes.push(`data: ${data.records} records, ${data.images?.downloaded ?? 0} images, missing [${(data.images?.missing || []).join(', ')}]. ${data.notes || ''}`)
+if (data) notes.push(`data: ${data.records} records, ${data.images?.downloaded ?? 0} images, missing [${(data.images?.missing || []).join(', ')}]. ${short(data.notes)}`)
 else warn('the Data agent returned nothing; js/data.js may still be the seed')
 
 // ---------------------------------------------------------------- Check
@@ -263,10 +298,18 @@ At most 3 re-check runs, then report. ${SHARED_REPORT}
 Return owner, fixed (failure ids), notFixed ([{id, reason}]; name the file that needs the change when it isn't yours), notes (at most 5 lines).`
 }
 
+// A Fixer may trace a failure to a file another owner holds (e.g. builder:detail -> js/data.js). It must not edit
+// that file, so the finding is handed to that owner as a target in the next round instead of being dropped.
+const ownerOfPath = reason => [...owners, { owner: 'scaffold', files: scaffoldFiles }]
+  .filter(o => (o.files || []).some(f => reason.includes(f.replace(/\/$/, ''))))
+  .map(o => o.owner)
+let handoffs = []
+
 let rounds = 0
 while (last && rounds < healRounds) {
   // ponytail: a11y warnings are reported, never healed; add them here if they start to matter.
-  const targets = (last.failures || []).filter(f => f.kind !== 'a11y' && (f.severity === 'error' || f.kind === 'visual'))
+  const targets = [...(last.failures || []).filter(f => f.kind !== 'a11y' && (f.severity === 'error' || f.kind === 'visual')), ...handoffs]
+  handoffs = []
   if (!targets.length) break
   // errors first, then visual warnings worst score first (SKILL.md step 6)
   targets.sort((a, b) => (a.kind === 'visual') - (b.kind === 'visual') || (last.fidelity?.[a.id.slice(7)] ?? 1) - (last.fidelity?.[b.id.slice(7)] ?? 1))
@@ -277,7 +320,12 @@ while (last && rounds < healRounds) {
     ;(groups[owner] ||= []).push(f)
   }
   const fixes = await parallel(Object.entries(groups).map(([owner, fs]) => () => run(`fix:${owner} r${rounds}`, 'Heal', healPrompt(owner, fs, rounds), FIX_SCHEMA)))
-  for (const f of fixes) if (f) notes.push(`heal r${rounds} ${f.owner}: fixed [${(f.fixed || []).join(', ')}], not fixed [${(f.notFixed || []).map(n => `${n.id}: ${n.reason}`).join('; ')}]`)
+  for (const f of fixes) if (f) notes.push(`heal r${rounds} ${f.owner}: fixed [${(f.fixed || []).join(', ')}], not fixed [${(f.notFixed || []).map(n => `${n.id}: ${short(n.reason, 200)}`).join('; ')}]`)
+  for (const f of fixes) for (const n of f?.notFixed || []) for (const to of ownerOfPath(n.reason || '').filter(o => o !== f.owner)) {
+    handoffs.push({ id: `handoff:${n.id}`, kind: 'handoff', severity: 'error', owner: to, files: filesOf(to),
+      message: `${f.owner} traced ${n.id} to your files and could not fix it there: ${n.reason}` })
+    log(`heal r${rounds}: ${f.owner} hands ${n.id} to ${to}`)
+  }
 
   const next = await check(`check r${rounds}`, 'Heal')
   if (!next) { warn(`heal r${rounds}: the check agent returned nothing, stopping`); break }
@@ -285,7 +333,7 @@ while (last && rounds < healRounds) {
   record(next)
   const noGain = next.errors >= last.errors && (next.fidelityAvg ?? 0) - (last.fidelityAvg ?? 0) < 0.01
   last = next
-  if (noGain) { log(`heal: no gain in round ${rounds}, stopping`); break }
+  if (noGain && !handoffs.length) { log(`heal: no gain in round ${rounds}, stopping`); break }
 }
 if (last && rounds === healRounds && (last.failures || []).some(f => f.severity === 'error')) log(`heal: stopped at the ${healRounds}-round cap with ${last.errors} errors left`)
 

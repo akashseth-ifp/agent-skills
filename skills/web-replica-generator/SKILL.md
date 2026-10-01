@@ -31,6 +31,8 @@ You are the **orchestrator**. You start the build workflow, which captures the t
 
 `<skill>` is this skill's directory, the one holding this file. Run `npm install` in `<skill>` once. If Playwright's Chromium is missing, the scripts fall back to the system Chrome, or you can run `npx playwright install chromium`.
 
+Also once, from the project root, register the lean agent type: `mkdir -p .claude/agents && ln -s ../../skills/web-replica-generator/agents/replica-worker.md .claude/agents/replica-worker.md` (adjust the link if `<skill>` lives elsewhere). It has only the file, shell and web tools, about 12k fewer tokens on every agent turn. Agent types load at session start, so it takes effect after a restart; until then the workflow falls back to `general-purpose` by itself.
+
 The spec and report formats, and the runtime API that scaffold generates (store, router, ui, app, the shell and view contract), are in [references/spec-schema.md](references/spec-schema.md).
 
 ## 1. Run the build workflow (primary path)
@@ -46,6 +48,7 @@ Workflow({ scriptPath: '<skill>/workflows/build-replica.js',
 - `journey`, `focus`, `maxBuilders` and `healRounds` are optional. Omit `journey` only when you don't know the journey (see the capture tips).
 - `maxBuilders` counts view Builders; builder:shell and Data come on top. Raise it above 3 only for more than 6 views.
 - `healRounds` defaults to 2. Never pass more than 3.
+- `agentType` is optional too: without it the workflow uses `replica-worker` when it is registered, else `general-purpose`, and logs which. When you resume a run with `resumeFromRunId`, pass the type that run used, so its cached calls still match.
 
 It writes `<replica>/.start`, runs every phase and returns `{ final, rounds, history, agents, owners, reconstructed, served, notes }`: `final` is the last check's summary and failures, `history` the errors and fidelity after each check, `served` what the site showed this machine (localization, hidden prices). Time targets: capture 1–3 min, spec 2–5, scaffold under 1, build 6–15, check about 1, heal 3–10.
 
@@ -80,13 +83,14 @@ node -e 'const fs=require("fs"),[d,rounds,agents]=process.argv.slice(1),f=d+"/re
 
 ## 3. Manual path (no Workflow tool)
 
-These are the same phases, dispatched with the `Agent` tool. Run `mkdir -p <replica> && touch <replica>/.start` first.
+These are the same phases, dispatched with the `Agent` tool (`subagent_type: "replica-worker"` once it is set up, else `general-purpose`). Run `mkdir -p <replica> && touch <replica>/.start` first.
 
-1. **Capture** (1–3 min). `Read` `target/screens/*-desktop.png`, `*-mobile.png` and `states/*.png`. They are the ground truth for the rest of the run.
+1. **Capture** (1–3 min). It also writes `target/summary.json`, the compact digest the Analyst reads. `Read` `target/screens/*-desktop.png`, `*-mobile.png` and `states/*.png`; they are the ground truth for the rest of the run.
    ```bash
    node <skill>/scripts/capture_target.js <url> [<journey-url> …] --out <replica>/target --pages 3
+   node <skill>/scripts/draft_spec.js --dir <replica>      # spec.draft.json: the mechanical half of the spec
    ```
-2. **Spec.** Dispatch one Agent with [agents/analyst.md](references/agents/analyst.md). Review `spec.json` against the [spec checklist](#spec-checklist). From here on only you edit `spec.json`. If you change a feature, write the reason in its `note`.
+2. **Spec.** Dispatch one Agent with [agents/analyst.md](references/agents/analyst.md). It writes only the judgement parts (`spec.parts.json`) and `draft_spec.js --merge` combines them with the draft into `spec.json`; the merge must exit 0. Review `spec.json` against the [spec checklist](#spec-checklist). From here on only you edit `spec.json`. If you change a feature, write the reason in its `note`.
 3. **Scaffold** (~1 s). This generates tokens, store, router, app and ui, a starter `index.html` and `base.css`, stub views, a stub `shell.js`, and the seed `js/data.js` from `spec.data.seed`. It never overwrites an existing file, so a re-run is safe.
    ```bash
    node <skill>/scripts/scaffold_replica.js --dir <replica>
@@ -100,11 +104,21 @@ These are the same phases, dispatched with the `Agent` tool. Run `mkdir -p <repl
 6. **Heal.** Group the `error` failures by owner and dispatch one Fixer per owner in one message ([agents/fixer.md](references/agents/fixer.md)). Include each owner's `visual` warnings too, worst score first. Re-run step 5. Follow the [heal rules](#heal-rules).
 7. **Review, stamp, report** as in section 2.
 
+## Token economy
+
+A build's cost is almost all **input**: every tool call re-reads the agent's whole context, and each agent starts at about 31k tokens of system prompt and tool definitions (about 19k as `replica-worker`, see the setup above). So the cost is roughly (number of calls) × (context size); output is under 1%. The templates enforce this, and you should too:
+
+- **Briefs, not dumps.** Agents start with `node <skill>/scripts/brief.js --dir <replica> --owner <owner>` (about 5–10 KB: their files, pages, features with steps, tokens, measured styles, data shape, runtime API, commands). The Analyst reads `target/summary.json` (a digest of `capture.json`, about 15 KB). Nobody `cat`s `spec.json`, `capture.json`, the generated sources or the references.
+- **Scripts do the mechanical work.** `draft_spec.js` writes tokens, brand, locale and currency, pages, routes, patterns, sources, file owners and thresholds into `spec.draft.json`, so the Analyst writes only the judgement parts.
+- **Budgets:** Builders and shell 25 tool calls / 6 image Reads, Analyst 15 / 8, Data 15, Fixers 12 / 3. Each file gets one Write, and commands are batched.
+- **Images are cached and time-boxed:** `find_images.js` keeps downloads in `~/.cache/web-replica-generator/` and never runs past `--max-time` (150 s), so it doesn't hold up the build.
+- **You, the orchestrator,** keep your own context small too: read the workflow result and at most two `report/side-*.png`, not the whole report or every screenshot.
+
 ## Spec checklist
 
 - Every interactive thing visible in the screenshots is a feature with `steps`. The main user journey is `"priority": "must"`.
 - Every file in `files` has exactly one owner. Every page has `pattern`, `module` and `owner`. Header, nav, drawer, popover and footer features belong to `builder:shell`.
-- `data.seed` has 6–10 records, including every fixture a step relies on (the id in a `goto` route, the record a search term must find). Every `data.extras` export has a seed.
+- `data.seed` has at most 6 records: every fixture a step relies on plus 1–2 more (the id in a `goto` route, the record a search term must find). Every `data.extras` export has a seed.
 - `tokens` are values from `capture.json`. `data.fields` match the real samples; `locale`, `currency` and `currencyDigits` match the price format in the samples. `brand` is set.
 - The stack follows the rule below.
 
@@ -113,6 +127,7 @@ These are the same phases, dispatched with the `Agent` tool. Run `mkdir -p <repl
 ## Heal rules
 
 - **Stop** after `healRounds` rounds (default 2, never more than 3), or when a round improves neither the error count nor `fidelityAvg` (a rise under 0.01 counts as no gain). Whatever remains is a known gap in your report, not something to hide.
+- **Hand-offs:** a Fixer that traces a failure to another owner's file names it in `notFixed`. The workflow hands it to that owner in the next round, and the no-gain stop waits while a hand-off is pending (the round cap still holds).
 - **Never** edit a test (`spec.features[].steps`) or a threshold to make a check pass. If a step is genuinely wrong (for example it doesn't match what the target does), fix the step and write the reason in `note`.
 - Files owned by `scaffold` are edited only when a failure is traced to them, and the Fixer says so in its summary.
 

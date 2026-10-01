@@ -22,7 +22,7 @@ The Data agent ([agents/data.md](agents/data.md)) does this:
    ```bash
    node <skill>/scripts/find_images.js --manifest <replica>/assets/images.manifest.json --download <replica>/assets/img
    ```
-   It searches and downloads keys in parallel (`--concurrency`, default 3), backs off on HTTP 429, prefers JPEG, and writes `<key>.jpg` plus `index.json` (`{ "<key>": { "file", "keyword", "source", "license", "title" } }`). It prints the keys it couldn't fill. Re-runs skip keys that are already downloaded.
+   It searches and downloads keys in parallel (`--concurrency`, default 3) through one shared rate limiter (a 429 pauses every worker together), caches searches and images across builds in `~/.cache/web-replica-generator/` (`--no-cache` to bypass), stops starting requests after `--max-time` (150 s) and gives any key still without a picture a downloaded image of the same kind (`reusedFrom` in `index.json`), so it never leaves a 404. It prefers JPEG, and writes `<key>.jpg` plus `index.json` (`{ "<key>": { "file", "keyword", "source", "license", "title" } }`). It prints the keys it couldn't fill. Re-runs skip keys that are already downloaded.
 4. **Fill the gaps.** Give each missing key broader fallback keywords in the manifest and run the same command again. After two re-runs, point the records still missing a file at a downloaded image of the same kind (at most 3 records per image). A missing file is a smoke error (HTTP 404) even though the fallback below hides it.
 
 To look at candidates for one keyword by hand, search only: `node <skill>/scripts/find_images.js "wireless headphones" --per 3` prints each result's `url`, `source` and `license`.

@@ -20,9 +20,11 @@
  *   visual  layout similarity vs target screenshots (needs --target)             severity warn
  *           each failure also gets report/side-<page>-<vp>.png: target left, replica right, top 1600px
  *   a11y    axe-core serious/critical violations at desktop                       severity warn
- * Console: every failure with its full message (report.json is shared by parallel runs; the console is yours).
+ * Console: every failure with its full message, then a summary line, every page/viewport fidelity score and the
+ *          failing feature ids (report.json is shared by parallel runs; the console is yours).
  * Exit code: 0 when there are no `error` failures, 1 otherwise, 2 on bad usage (incl. an --owner/--only
- *            that matches nothing in spec.json, or a busy --url that isn't serving --dir).
+ *            that checks nothing, e.g. --only visual for pages without a target screenshot, or a busy --url
+ *            that isn't serving --dir).
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -55,6 +57,7 @@ const filesOf = owner => Object.entries(spec.files || {}).filter(([, o]) => o ==
 const failure = f => ({ severity: 'error', files: filesOf(f.owner), ...f, message: baseUrl ? f.message.replaceAll(baseUrl, '') : f.message });
 const wants = kind => !only || only === kind || only.startsWith(kind + ':');
 const url = route => baseUrl + (route.startsWith('/') ? route : '/' + route);
+const targetShotOf = (pg, vp) => targetDir && pg.source && path.join(targetDir, 'screens', `${pg.source}-${vp}.png`);
 
 // ---------- smoke + layout + visual, per page × viewport ----------
 async function checkPage(browser, { pg, vp }) {
@@ -96,7 +99,7 @@ async function checkPage(browser, { pg, vp }) {
       });
       if (o) fail({ id: `layout:${where}`, kind: 'layout', owner: pg.owner, message: `horizontal overflow ${o.scrollWidth}px > ${o.vw}px\n${o.culprits.join('\n')}`, screenshot: rel(shot) });
     }
-    const targetShot = targetDir && pg.source && path.join(targetDir, 'screens', `${pg.source}-${vp}.png`);
+    const targetShot = targetShotOf(pg, vp);
     if (wants('visual') && targetShot && fs.existsSync(targetShot)) {
       const diff = path.join(reportDir, `diff-${pg.id}-${vp}.png`);
       const vmh = pg.visualMaxHeight; // number, or { desktop, tablet, mobile }
@@ -249,6 +252,8 @@ const pageTasks = !only || pageKinds.some(wants)
   ? (spec.pages || []).filter(pg => (!owner || pg.owner === owner) && (!onlyPage || pg.id === onlyPage))
     .flatMap(pg => Object.keys(VIEWPORTS)
       .filter(vp => (!onlyVp || vp === onlyVp) && (onlyKind !== 'a11y' || vp === 'desktop'))
+      // --only visual: skip page × viewports with no target screenshot, they would load and score nothing.
+      .filter(vp => onlyKind !== 'visual' || fs.existsSync(targetShotOf(pg, vp) || ''))
       .map(vp => ({ pg, vp })))
   : [];
 const featureTasks = wants('feature')
@@ -259,7 +264,11 @@ const owners = [...new Set([...(spec.pages || []), ...(spec.features || [])].map
 if (owner && !owners.includes(owner)) usage(`--owner ${owner} matches nothing in spec.json. Owners: ${owners.join(', ')}`);
 if (only && ![...pageKinds, 'feature', 'data'].includes(onlyKind)) usage(`--only ${only}: kind must be one of ${[...pageKinds, 'feature', 'data'].join(', ')}`);
 if (onlyKind === 'visual' && !targetDir) usage('--only visual needs --target <replica>/target');
-if (onlyId && onlyKind !== 'data' && !pageTasks.length && !featureTasks.length) usage(`--only ${only}${owner ? ` with --owner ${owner}` : ''} matches nothing in spec.json`);
+const dataTask = wants('data') && (!owner || owner === 'data') && !!spec.data;
+if ((owner || only) && !pageTasks.length && !featureTasks.length && !dataTask) {
+  usage(`nothing to check for${owner ? ` --owner ${owner}` : ''}${only ? ` --only ${only}` : ''}` +
+    (onlyKind === 'visual' ? ' (no matching page has a target screenshot)' : ' (no matching page, feature or data)'));
+}
 
 const t0 = Date.now();
 let server;
@@ -294,7 +303,7 @@ try {
     pageTasks.forEach((t, i) => { if (results[i].score !== undefined) fidelity[`${t.pg.id}/${t.vp}`] = results[i].score; });
     featureResults = results.slice(pageTasks.length).map(r => r.result);
   }
-  if (wants('data') && (!owner || owner === 'data')) failures.push(...await checkData());
+  if (dataTask) failures.push(...await checkData());
 } finally {
   await browser?.close();
   await server?.close();
@@ -330,5 +339,9 @@ for (const f of failures) {
   if (f.screenshot && !f.message.includes(f.screenshot)) console.log(`    screenshot: ${f.screenshot}`);
 }
 console.log(`\n${report.passed ? 'PASSED' : 'FAILED'}  errors:${errors} warnings:${report.summary.warnings}  features:${featureResults.length ? `${featureResults.filter(f => f.passed).length}/${featureResults.length}` : '-'}  fidelity:${report.summary.fidelityAvg ?? '-'}  (${report.summary.seconds}s)`);
+// Per-page scores and failing ids here, so nobody digs them out of the shared report.json.
+if (scores.length) console.log(`fidelity: ${Object.entries(fidelity).map(([k, v]) => `${k} ${v}`).join(' · ')}`);
+const failing = featureResults.filter(f => !f.passed).map(f => f.id);
+if (failing.length) console.log(`failing features: ${failing.join(', ')}`);
 console.log(`Report: ${path.join(dir, 'report.json')}`);
 process.exit(report.passed ? 0 : 1);
