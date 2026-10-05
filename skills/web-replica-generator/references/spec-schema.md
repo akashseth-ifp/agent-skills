@@ -197,7 +197,7 @@ node <skill>/scripts/draft_spec.js --dir <replica> --merge  # spec.draft.json + 
   },
   "failures": [
     {
-      "id": "feature:add-to-basket", "kind": "feature",   // smoke | layout | feature | data | visual | a11y
+      "id": "feature:add-to-basket", "kind": "feature",   // smoke | layout | feature | data | visual | a11y | interact
       "severity": "error",                                // error blocks completion; warn is reported only
       "owner": "builder:catalog",
       "files": ["css/catalog.css", "js/views/catalog.js"], // from spec.files for that owner

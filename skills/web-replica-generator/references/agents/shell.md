@@ -62,15 +62,20 @@ What to write
      nav item, search box value from ctx.route.params (not while it has focus), location label.
    - Shared state lives in store (spec.state); change it with store.set, never localStorage directly.
    - Helpers: see "Runtime API" in the brief. Import from './ui.js', './store.js', './router.js'.
+Nav, mega-menu, tile and footer links: each label gets its own destination, href(<listing page>,
+{ cat: '<slug>' }) or { q: '<label>' }, never one bare href shared by different labels, and only
+values that match at least one record. Footer info/policy links with no page of their own may point
+home (the checker only warns about those).
 Every data-testid named in your features' steps must exist exactly as named. Menus and drawers
 render hidden (the [hidden] attribute) until opened. No working login or payment: forms look real
 and write to the store only.
 
-Self-check (the checker serves the replica itself; start no server). Hard cap: at most 3 checker
-runs in total. Count them; after the 3rd, stop and return whatever the state. Run the commands the
+Self-check (the checker serves the replica itself; start no server). Hard cap: at most 4 checker
+runs in total. Count them; after the 4th, stop and return whatever the state. Run the commands the
 brief prints at its end, as printed:
   node <skill>/scripts/check_replica.js --dir <replica> --owner <owner> --only feature
   node <skill>/scripts/check_replica.js --dir <replica> --only visual:<visual-check page> --target <replica>/target
+  node <skill>/scripts/check_replica.js --dir <replica> --only interact:<first page>/desktop   (your header/footer links; ignore the view owners' lines)
 The visual pass (once, after your features pass) loads your visual-check page at all 3 viewports.
 It takes no --owner: you own no page, so the checker would find nothing and exit 2. Everything you
 need is in what it prints: the failures, the "fidelity:" line and the "failing features:" line.
@@ -80,6 +85,6 @@ left, replica right), else report/page-<page>-<vp>.png next to the target screen
 crop or compare scripts. The view area may still be a stub; ignore it.
 
 Return at most 10 lines: files written, features passing/failing (ids), the header height and
-content width you measured per viewport, checker runs used (n/3), anything you needed from a file
+content width you measured per viewport, checker runs used (n/4), anything you needed from a file
 you don't own.
 ```

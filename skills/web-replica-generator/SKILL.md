@@ -95,7 +95,7 @@ These are the same phases, dispatched with the `Agent` tool (`subagent_type: "re
    ```bash
    node <skill>/scripts/scaffold_replica.js --dir <replica>
    ```
-4. **Build.** In **one message**, dispatch builder:shell ([agents/shell.md](references/agents/shell.md)), one Builder per view owner ([agents/builder.md](references/agents/builder.md)) and the Data agent ([agents/data.md](references/agents/data.md)). They all start at once, because the seed data exists from minute 0. Fill each template's `<…>` placeholders from the spec. Each agent writes only its own files, self-checks with `--owner` (at most 3 checker runs) and returns 10 lines or fewer.
+4. **Build.** In **one message**, dispatch builder:shell ([agents/shell.md](references/agents/shell.md)), one Builder per view owner ([agents/builder.md](references/agents/builder.md)) and the Data agent ([agents/data.md](references/agents/data.md)). They all start at once, because the seed data exists from minute 0. Fill each template's `<…>` placeholders from the spec. Each agent writes only its own files, self-checks with `--owner` (at most 4 checker runs) and returns 10 lines or fewer.
 5. **Check** (~1 min). The checker serves the replica itself on a free port, so don't start a server.
    ```bash
    node <skill>/scripts/check_replica.js --dir <replica> --target <replica>/target

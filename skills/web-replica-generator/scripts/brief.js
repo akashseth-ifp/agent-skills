@@ -177,7 +177,10 @@ export async function brief(dir, owner) {
   const cmds = owner === 'data' ? [`${C} --only data`] : [
     features.length && `${C} --owner ${owner} --only feature`,
     isShell ? shellPage && `${C} --only visual:${shellPage.id} ${T} (header/frame/footer only)`
-      : pages.some(captured) && `${C} --owner ${owner} --only visual ${T}`].filter(Boolean);
+      : pages.some(captured) && `${C} --owner ${owner} --only visual ${T}`,
+    // Header/footer links are audited on the first page only, so the shell checks that page.
+    isShell ? spec.pages?.[0] && `${C} --only interact:${spec.pages[0].id}/desktop   # your header/footer links`
+      : pages.length && `${C} --owner ${owner} --only interact   # links, carousels, filters`].filter(Boolean);
   out.push('', 'Commands (the checker serves the replica itself; start no server):', ...(cmds.length ? cmds : ['  (none: nothing of yours has a check)']));
   return out.join('\n');
 }

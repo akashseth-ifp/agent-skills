@@ -62,14 +62,27 @@ Rules
 - Responsive at 1440 / 768 / 375 with no horizontal overflow. Images have alt text and width/height
   or aspect-ratio matching the target's.
 - No lorem ipsum, no default browser controls left unstyled.
+
+Interactions (the interact check clicks every link, arrow and filter on your pages)
+- Filter, sort and page state lives in the URL: links and controls go to href(<page>, { ...params,
+  brand: 'Sony' }) and render() reads ctx.route.params. Not the store: then the nav, Back and reload
+  all show the right list, and the filters reset when someone arrives from another page.
+- Build filter options and their "(N)" counts from ctx.data (only options that match at least one
+  record). Never copy the target's counts or options.
+- Links to a listing carry the params that make the destination differ (category, q). Different
+  labels never share one bare href, and every one lands on a non-empty result.
+- Carousels and sliders: prev/next must visibly move or swap the slide, at every viewport where the
+  arrows show. Where a breakpoint lays out all slides at once, hide the arrows there. Prev at the
+  first slide is hidden/disabled, or wraps around.
 - Need a change in a file you don't own? Don't make it and don't compensate for it; put it in your
   summary.
 
-Self-check (the checker serves the replica itself; start no server). Hard cap: at most 3 checker
-runs in total. Count them; after the 3rd, stop and return whatever the state. Run the commands the
+Self-check (the checker serves the replica itself; start no server). Hard cap: at most 4 checker
+runs in total. Count them; after the 4th, stop and return whatever the state. Run the commands the
 brief prints at its end, as printed (it leaves out a check with nothing of yours to check):
   node <skill>/scripts/check_replica.js --dir <replica> --owner <owner> --only feature
   node <skill>/scripts/check_replica.js --dir <replica> --owner <owner> --only visual --target <replica>/target
+  node <skill>/scripts/check_replica.js --dir <replica> --owner <owner> --only interact
 Run the visual pass once, after your features pass. Everything you need is in what it prints: the
 failures, the "fidelity:" line with every page/viewport score and the "failing features:" line.
 report.json is shared (other agents overwrite it), so don't open it. For each visual failure Read
@@ -77,5 +90,5 @@ report/side-<page>-<vp>.png (target left, replica right) and fix the biggest dif
 write crop or compare scripts. Ignore failures that belong to other owners.
 
 Return at most 10 lines: files written, features passing/failing (ids), the "fidelity:" line from
-your visual run, checker runs used (n/3), anything you needed from a shared file or another owner.
+your visual run, checker runs used (n/4), anything you needed from a shared file or another owner.
 ```

@@ -21,7 +21,7 @@ node <skill>/scripts/check_replica.js --dir <replica> --only data               
 - **It serves itself.** Without `--url` the checker starts its own static server for `--dir` on a free port and stops it when done. Don't start `npx serve` for checks. Pass `--url` only to check a replica that's already hosted elsewhere.
 - **It runs in parallel.** Page × viewport checks and features run concurrently in separate browser contexts (`--concurrency`, default 6). A full check takes about 1 minute.
 - **`--owner <o>`** runs only that owner's pages (the page checks) and that owner's features. The data check runs only without `--owner` or with `--owner data`. builder:shell owns no page, so its visual pass uses `--only visual:<page id>`.
-- **`--only <kind>[:<id>]`** runs one kind (`smoke`, `layout`, `visual`, `a11y`, `feature`, `data`) or one failure id from `report.json`. A page failure id loads just that page × viewport.
+- **`--only <kind>[:<id>]`** runs one kind (`smoke`, `layout`, `visual`, `a11y`, `interact`, `feature`, `data`) or one failure id from `report.json`. A page failure id loads just that page × viewport.
 - Every run rewrites `report.json`. Agents checking in parallel read the failures printed by their own run.
 
 | Kind | Checked on | Fails when | Severity |
@@ -32,6 +32,7 @@ node <skill>/scripts/check_replica.js --dir <replica> --only data               
 | `data` | `spec.data.module` imported in Node | fewer than `count` records (the scaffold seed fails only this until the Data agent's swap), a duplicate id, a type/range/enum violation, or a rule is false | error |
 | `visual` | every page × viewport, with `--target` | layout similarity is below `spec.thresholds.visual` | warn |
 | `a11y` | every page at desktop | axe-core serious or critical violations | warn |
+| `interact` | every page at desktop (header/footer links on the first page only) | a link matches no route, 4+ differently-labelled links share one destination (warn when it is `#/`), a link opens a blank view or `empty-state`; a prev/next/arrow/slide button leaves the screen unchanged; a filter option (2 per group) gives no results, changes nothing (warn) or shows a "(N)" larger than the data set | error |
 
 **Visual score.** Both screenshots are shrunk to 160 px wide, compared with pixelmatch, and the result is multiplied by the ratio of their heights. At that size text turns into bars and photos into colour blocks, so the score measures layout, colour and spacing rather than the exact words. As a rough guide: ≥ 0.9 is very close, 0.8–0.9 is recognisably the same page, and < 0.6 is a different layout.
 

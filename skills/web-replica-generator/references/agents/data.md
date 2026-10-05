@@ -51,6 +51,9 @@ Order of work (the downloads are the slow part, so they start first and run whil
      the real ones (detail-page ariaOutline), because text length drives page height and the
      visual score. Vary the wording within a group, so records in one category don't read alike.
    - Every enum value that the UI lists (e.g. every sidebar category) needs at least one record.
+     Every href in extras (nav, tiles, menus) uses a param value that matches at least one record,
+     and different labels get different hrefs. Filter option lists carry no counts: views count them
+     from the records.
      Spread records across enum values and ranges the way the samples are spread. Avoid
      round-number prices like 10.00 unless the samples use them.
 2. Swap it in atomically, so nobody imports a half-written file:
